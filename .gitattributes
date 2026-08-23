@@ -1,0 +1,30 @@
+# Normalise line endings so Windows checkouts and Linux CI agree on content.
+* text=auto eol=lf
+
+# Windows-only helpers keep CRLF.
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+
+# Binary assets must never be line-ending converted.
+*.pdf  binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.xlsx binary
+*.parquet binary
+
+# Notebooks are JSON: diff them as text but keep them out of language stats.
+*.ipynb text linguist-documentation
+
+# Generated or vendored artefacts should not skew language statistics.
+data/**       linguist-generated=true
+results/**    linguist-generated=true
+paper/generated/**            linguist-generated=true
+papers/*/generated/**         linguist-generated=true
+RELEASE_MANIFEST.sha256       linguist-generated=true
+poetry.lock                   linguist-generated=true
+
+# Checksum manifests and locks are noisy in review; collapse them by default.
+*.sha256 -diff
