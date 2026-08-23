@@ -6,7 +6,6 @@ import math
 
 import pandas as pd
 import pytest
-
 from tools.exploratory_endpoint_decomposition import calculate_endpoint_decomposition
 
 

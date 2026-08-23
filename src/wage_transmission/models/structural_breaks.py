@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from itertools import pairwise
 
 import numpy as np
 import pandas as pd
@@ -116,7 +117,7 @@ def fit_structural_breaks(
     boundaries = sorted(boundaries)
 
     output_segments: list[BreakSegment] = []
-    for start, stop in zip(boundaries[:-1], boundaries[1:], strict=True):
+    for start, stop in pairwise(boundaries):
         intercept, elasticity, rss = params[(start, stop)]
         output_segments.append(
             BreakSegment(

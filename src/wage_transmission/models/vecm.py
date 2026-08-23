@@ -35,10 +35,14 @@ def fit_vecm(
     levels = data[["log_wage", "log_productivity"]].dropna().to_numpy(dtype=float)
     if len(levels) < 20:
         raise ValueError("At least 20 observations are recommended for VECM estimation.")
-    rank_result = select_coint_rank(levels, det_order=0, k_ar_diff=k_ar_diff, method="trace", signif=0.05)
+    rank_result = select_coint_rank(
+        levels, det_order=0, k_ar_diff=k_ar_diff, method="trace", signif=0.05
+    )
     rank = int(rank_result.rank)
     if rank < 1:
-        raise ValueError("No cointegrating relation selected; a VECM with rank >= 1 is not justified.")
+        raise ValueError(
+            "No cointegrating relation selected; a VECM with rank >= 1 is not justified."
+        )
     fitted = VECM(levels, k_ar_diff=k_ar_diff, coint_rank=rank, deterministic="co").fit()
     irfs = fitted.irf(periods=irf_periods).irfs
     return VECMResult(

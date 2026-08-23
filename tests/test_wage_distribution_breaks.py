@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pandas as pd
-
 from tools.wage_distribution_breaks import endogenous_break, historical_break
 
 ROOT = Path(__file__).resolve().parents[1]

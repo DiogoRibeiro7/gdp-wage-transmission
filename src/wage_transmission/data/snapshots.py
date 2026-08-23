@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import contextlib
 import csv
 import json
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from wage_transmission.data.common import sha256_bytes, write_snapshot
 
@@ -160,10 +162,8 @@ def _registry_rows(
             raw_display = snapshot.raw_path.as_posix()
             metadata_display = snapshot.metadata_path.as_posix()
         relative_parts: tuple[str, ...] = ()
-        try:
+        with contextlib.suppress(ValueError):
             relative_parts = snapshot.raw_path.relative_to(root).parts
-        except ValueError:
-            pass
         rows.append(
             {
                 "vintage": relative_parts[0] if len(relative_parts) > 1 else "",

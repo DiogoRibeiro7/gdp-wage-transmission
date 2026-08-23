@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable
 
-import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 from statsmodels.regression.linear_model import RegressionResultsWrapper
@@ -30,7 +29,9 @@ def fit_ols_hac(
     return fitted
 
 
-def coefficients(result: RegressionResultsWrapper, names: Iterable[str] | None = None) -> tuple[RegressionCoefficient, ...]:
+def coefficients(
+    result: RegressionResultsWrapper, names: Iterable[str] | None = None
+) -> tuple[RegressionCoefficient, ...]:
     """Convert statsmodels coefficients to typed result objects."""
     selected = list(result.params.index if names is None else names)
     output: list[RegressionCoefficient] = []

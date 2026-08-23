@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from itertools import product
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 from urllib.parse import urlencode
 
 import httpx
@@ -157,7 +158,9 @@ def _canonical_annual_series(
     if frame.empty:
         return pd.DataFrame(columns=["country", "year", value_name, "source"])
     if "time" not in frame.columns or "OBS_VALUE" not in frame.columns:
-        raise ValueError("Unexpected Eurostat response dimensions: expected `time` and `OBS_VALUE`.")
+        raise ValueError(
+            "Unexpected Eurostat response dimensions: expected `time` and `OBS_VALUE`."
+        )
 
     out = frame.loc[:, ["time", "OBS_VALUE"]].copy()
     out["year"] = pd.to_numeric(out["time"], errors="coerce")
@@ -169,7 +172,11 @@ def _canonical_annual_series(
     out["source"] = source
     if out.duplicated(["country", "year"]).any():
         raise ValueError(f"Eurostat selection for {value_name} is not unique by country-year.")
-    return out.loc[:, ["country", "year", value_name, "source"]].sort_values("year").reset_index(drop=True)
+    return (
+        out.loc[:, ["country", "year", value_name, "source"]]
+        .sort_values("year")
+        .reset_index(drop=True)
+    )
 
 
 def _download_annual_series(
@@ -216,7 +223,9 @@ def _download_annual_series(
             rows.append(canonical)
     if not rows:
         return pd.DataFrame(columns=["country", "year", value_name, "source"])
-    return pd.concat(rows, ignore_index=True).sort_values(["country", "year"]).reset_index(drop=True)
+    return (
+        pd.concat(rows, ignore_index=True).sort_values(["country", "year"]).reset_index(drop=True)
+    )
 
 
 def download_real_gdp(
@@ -328,7 +337,6 @@ def download_hicp_index(
     )
 
 
-
 def summarise_decomposition_coverage(
     series: Mapping[str, pd.DataFrame],
     *,
@@ -360,7 +368,7 @@ def summarise_decomposition_coverage(
             years = pd.to_numeric(subset["year"], errors="coerce").dropna().astype(int)
             values = pd.to_numeric(subset[value_name], errors="coerce")
             complete_years = years.loc[values.notna()].drop_duplicates().sort_values()
-            n_observations = int(len(complete_years))
+            n_observations = len(complete_years)
             records.append(
                 {
                     "country": country,
@@ -372,7 +380,10 @@ def summarise_decomposition_coverage(
                     "coverage_ratio": float(n_observations / expected),
                 }
             )
-    return pd.DataFrame.from_records(records).sort_values(["country", "series"]).reset_index(drop=True)
+    return (
+        pd.DataFrame.from_records(records).sort_values(["country", "series"]).reset_index(drop=True)
+    )
+
 
 def download_decomposition_inputs(
     countries: list[str],
@@ -419,11 +430,15 @@ def download_decomposition_inputs(
     result: pd.DataFrame | None = None
     for value_name, frame in series.items():
         current = frame.loc[:, ["country", "year", value_name]].copy()
-        result = current if result is None else result.merge(
-            current,
-            on=["country", "year"],
-            how="inner",
-            validate="one_to_one",
+        result = (
+            current
+            if result is None
+            else result.merge(
+                current,
+                on=["country", "year"],
+                how="inner",
+                validate="one_to_one",
+            )
         )
     if result is None:
         return pd.DataFrame(columns=["country", "year", *value_columns])

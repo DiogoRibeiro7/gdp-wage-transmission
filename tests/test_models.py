@@ -58,7 +58,6 @@ def test_asymmetry_runs(synthetic_levels: pd.DataFrame) -> None:
     assert np.isfinite(result.negative_cumulative)
 
 
-
 def test_pipeline_accepts_alternative_driver(tmp_path, synthetic_levels: pd.DataFrame) -> None:
     from wage_transmission.pipeline import analyse_country
 

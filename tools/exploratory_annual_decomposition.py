@@ -17,15 +17,15 @@ import argparse
 import hashlib
 import json
 import math
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
 from wage_transmission.decomposition import (
-    COMPONENT_COLUMNS,
     decompose_real_wage_growth,
     summarise_decomposition,
 )
@@ -113,9 +113,7 @@ def _validate_input(frame: pd.DataFrame) -> pd.DataFrame:
         raise ValueError("Required annual decomposition levels must be strictly positive.")
 
     if OPTIONAL_SAL_DC_COLUMN in data.columns:
-        data[OPTIONAL_SAL_DC_COLUMN] = pd.to_numeric(
-            data[OPTIONAL_SAL_DC_COLUMN], errors="coerce"
-        )
+        data[OPTIONAL_SAL_DC_COLUMN] = pd.to_numeric(data[OPTIONAL_SAL_DC_COLUMN], errors="coerce")
         observed_sal_dc = data[OPTIONAL_SAL_DC_COLUMN].dropna()
         if (observed_sal_dc <= 0.0).any() or not np.isfinite(observed_sal_dc).all():
             raise ValueError("Observed SAL_DC levels must be finite and strictly positive.")
@@ -191,9 +189,7 @@ def calculate_annual_decomposition(
     )
     lfs_summary = summarise_decomposition(lfs_decomposed, country=country)
     lfs_sensitivity = lfs_decomposed.copy()
-    lfs_sensitivity["denominator_concept"] = (
-        "LFS employees (national/resident concept), not SAL_DC"
-    )
+    lfs_sensitivity["denominator_concept"] = "LFS employees (national/resident concept), not SAL_DC"
     lfs_sensitivity["denominator_concept_matches_locked_specification"] = False
     lfs_sensitivity["publication_eligible"] = False
 
@@ -205,7 +201,9 @@ def calculate_annual_decomposition(
         assert locked_decomposed is not None
         locked_output = locked_decomposed.copy()
         locked_output["employment_status"] = "available_locked_sal_dc"
-        locked_output.loc[locked_output.index[0], "employment_status"] = "not_applicable_first_level"
+        locked_output.loc[locked_output.index[0], "employment_status"] = (
+            "not_applicable_first_level"
+        )
         locked_output["publication_eligible"] = False
         locked_summary = summarise_decomposition(locked_decomposed, country=country)
         locked_status = "complete_indexed_exploratory_only"
@@ -221,7 +219,7 @@ def calculate_annual_decomposition(
         country=country,
         start_year=int(data["year"].min()),
         end_year=int(data["year"].max()),
-        n_level_observations=int(len(data)),
+        n_level_observations=len(data),
         n_growth_observations=int(len(data) - 1),
         publication_eligible=False,
         employee_independent_terms_complete=True,
@@ -284,8 +282,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     frame = pd.read_csv(args.input)
     outputs = write_outputs(frame, output_dir=args.output_dir, country=args.country)
     payload: dict[str, Any] = {
-        name: {"path": str(path), "sha256": sha256_file(path)}
-        for name, path in outputs.items()
+        name: {"path": str(path), "sha256": sha256_file(path)} for name, path in outputs.items()
     }
     print(json.dumps(payload, indent=2, sort_keys=True))
     return 0

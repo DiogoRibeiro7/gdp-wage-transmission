@@ -101,7 +101,7 @@ def estimate_country_robustness(
                 "driver": driver_column,
                 "first_year": int(levels["year"].min()),
                 "last_year": int(levels["year"].max()),
-                "nobs": int(len(levels)),
+                "nobs": len(levels),
                 "cointegration_p_value": float(coint.p_value),
                 "cointegration_5pct": bool(coint.p_value < 0.05),
                 "distributed_lag_cumulative": float(distributed.cumulative_transmission),
@@ -136,7 +136,9 @@ def summarise_country_robustness(
     data = frame.loc[:, list(required)].apply(pd.to_numeric, errors="coerce").dropna()
     data = data.loc[data["distributed_lag_cumulative_se"] > 0.0]
     if len(data) < 2:
-        raise ValueError("At least two country estimates with positive standard errors are required.")
+        raise ValueError(
+            "At least two country estimates with positive standard errors are required."
+        )
 
     estimates = data["distributed_lag_cumulative"].to_numpy(dtype=float)
     variances = np.square(data["distributed_lag_cumulative_se"].to_numpy(dtype=float))
@@ -169,7 +171,7 @@ def summarise_country_robustness(
 
     return CrossCountrySummary(
         driver=driver,
-        n_countries=int(len(estimates)),
+        n_countries=len(estimates),
         median_cumulative_transmission=float(np.median(estimates)),
         q25_cumulative_transmission=float(np.quantile(estimates, 0.25)),
         q75_cumulative_transmission=float(np.quantile(estimates, 0.75)),

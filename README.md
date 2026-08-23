@@ -100,7 +100,6 @@ The download layer stores source extracts unchanged under `data/raw/` before can
 ├── paper/                         # Paper 1 (locked GDP–wage transmission)
 ├── papers/
 │   └── wage_distribution_breaks/  # Paper 2
-├── prompts/
 ├── results/
 │   ├── figures/
 │   └── tables/

@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-
 from tools.publication_report import audit_paper_sources, build_paper_packet, verify_dossier
 
 

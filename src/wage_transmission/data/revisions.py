@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
-from typing import Iterable
 
 import numpy as np
 import pandas as pd
@@ -57,7 +57,9 @@ def compare_vintages(
     for series in values:
         left = old.loc[:, [*key_columns, series]].rename(columns={series: "old_value"})
         right = new.loc[:, [*key_columns, series]].rename(columns={series: "new_value"})
-        merged = left.merge(right, on=list(key_columns), how="outer", indicator=True, validate="one_to_one")
+        merged = left.merge(
+            right, on=list(key_columns), how="outer", indicator=True, validate="one_to_one"
+        )
         merged["old_value"] = pd.to_numeric(merged["old_value"], errors="coerce")
         merged["new_value"] = pd.to_numeric(merged["new_value"], errors="coerce")
 

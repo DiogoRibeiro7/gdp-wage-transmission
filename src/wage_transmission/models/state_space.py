@@ -46,9 +46,7 @@ def _kalman_filter(
         predicted_covariance = covariance + transition_noise
         design = np.array([1.0, regressor], dtype=float)
         innovation = target - float(design @ predicted_state)
-        innovation_variance = float(
-            design @ predicted_covariance @ design + observation_variance
-        )
+        innovation_variance = float(design @ predicted_covariance @ design + observation_variance)
         innovation_variance = max(innovation_variance, 1e-12)
         gain = predicted_covariance @ design / innovation_variance
         state = predicted_state + gain * innovation
@@ -56,9 +54,7 @@ def _kalman_filter(
         covariance = (covariance + covariance.T) / 2.0
 
         log_likelihood += -0.5 * (
-            np.log(2.0 * np.pi)
-            + np.log(innovation_variance)
-            + innovation**2 / innovation_variance
+            np.log(2.0 * np.pi) + np.log(innovation_variance) + innovation**2 / innovation_variance
         )
         states[idx] = state
         covariances[idx] = covariance

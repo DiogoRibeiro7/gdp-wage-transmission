@@ -73,7 +73,6 @@ class ModelsConfig(_StrictConfig):
     reliability: ReliabilityConfig = ReliabilityConfig()
 
 
-
 class PublicationConfig(_StrictConfig):
     """Pre-specified hierarchy for publication-facing interpretation."""
 
@@ -101,6 +100,7 @@ def load_publication_config(path: Path) -> PublicationConfig:
     if not isinstance(payload, dict):
         raise ValueError("Publication configuration must be a YAML mapping.")
     return PublicationConfig.model_validate(payload)
+
 
 def load_models_config(path: Path) -> ModelsConfig:
     """Load and validate a YAML model configuration file."""

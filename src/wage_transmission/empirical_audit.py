@@ -61,10 +61,11 @@ def audit_country_frame(frame: pd.DataFrame) -> EmpiricalAudit:
     if years <= 0:
         raise ValueError("The sample must span at least one calendar year.")
 
-    wage_growth = float(np.exp((data["log_wage"].iloc[-1] - data["log_wage"].iloc[0]) / years) - 1.0)
+    wage_growth = float(
+        np.exp((data["log_wage"].iloc[-1] - data["log_wage"].iloc[0]) / years) - 1.0
+    )
     driver_growth = float(
-        np.exp((data["log_productivity"].iloc[-1] - data["log_productivity"].iloc[0]) / years)
-        - 1.0
+        np.exp((data["log_productivity"].iloc[-1] - data["log_productivity"].iloc[0]) / years) - 1.0
     )
     correlation = float(growth["dlog_wage"].corr(growth["dlog_productivity"]))
 
@@ -77,8 +78,8 @@ def audit_country_frame(frame: pd.DataFrame) -> EmpiricalAudit:
     return EmpiricalAudit(
         start_year=int(data["year"].iloc[0]),
         end_year=int(data["year"].iloc[-1]),
-        n_levels=int(len(data)),
-        n_growth_observations=int(len(growth)),
+        n_levels=len(data),
+        n_growth_observations=len(growth),
         annualized_wage_growth=wage_growth,
         annualized_driver_growth=driver_growth,
         growth_correlation=correlation,
@@ -103,7 +104,9 @@ def assess_reliability(
 
     min_shocks = min(audit.positive_driver_changes, audit.negative_driver_changes)
     asymmetry_supported = min_shocks >= config.min_asymmetry_shocks_per_sign
-    asymmetry_label = "supported_for_interpretation" if asymmetry_supported else "underpowered_shock_balance"
+    asymmetry_label = (
+        "supported_for_interpretation" if asymmetry_supported else "underpowered_shock_balance"
+    )
 
     latest_elasticity = float(state_space.elasticity[-1])
     latest_se = float(state_space.elasticity_std_error[-1])
@@ -120,10 +123,14 @@ def assess_reliability(
     break_label = "supported_for_interpretation" if breaks_supported else "small_regime_segments"
 
     supported_horizons = tuple(
-        point.horizon for point in local_projections if point.nobs >= config.min_local_projection_nobs
+        point.horizon
+        for point in local_projections
+        if point.nobs >= config.min_local_projection_nobs
     )
     exploratory_horizons = tuple(
-        point.horizon for point in local_projections if point.nobs < config.min_local_projection_nobs
+        point.horizon
+        for point in local_projections
+        if point.nobs < config.min_local_projection_nobs
     )
     lp_label = (
         "all_horizons_meet_sample_threshold"

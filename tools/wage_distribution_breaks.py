@@ -13,9 +13,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -155,7 +155,7 @@ def _search_break(
     """Search a continuous one-kink model and return the minimum-RSS break."""
     n = len(y)
     linear_x = _design(years)
-    _, linear_residuals, linear_rss, linear_fitted = _ols_rss(y, linear_x)
+    _, _, linear_rss, linear_fitted = _ols_rss(y, linear_x)
     best: tuple[int, float, np.ndarray, np.ndarray, float, np.ndarray] | None = None
     sup_f = -np.inf
     for year in _candidate_years(years, min_segment):
@@ -229,8 +229,9 @@ def _bootstrap_break_interval(
         y_star = fitted + _circular_block_sample(centered, block_length, rng)
         break_year, *_ = _search_break(y_star, years, min_segment)
         dates[index] = break_year
-    low, median, high = np.quantile(dates.astype(float), [0.025, 0.5, 0.975])
-    return int(round(low)), int(round(median)), int(round(high))
+    quantiles = np.rint(np.quantile(dates.astype(float), [0.025, 0.5, 0.975]))
+    low, median, high = (int(value) for value in quantiles)
+    return low, median, high
 
 
 def _approx_pct(log_slope: float) -> float:
@@ -253,9 +254,7 @@ def endogenous_break(
         raise ValueError(f"Unknown metric {metric!r}.")
     years = data["year"].to_numpy(dtype=int)
     y = np.log(data[metric].to_numpy(dtype=float))
-    selected, sup_f, beta, _, segmented_rss, linear_rss, _, _ = _search_break(
-        y, years, min_segment
-    )
+    selected, sup_f, beta, _, segmented_rss, linear_rss, _, _ = _search_break(y, years, min_segment)
     rng_p = np.random.default_rng(seed)
     p_value = _bootstrap_sup_f_p_value(
         y,
@@ -406,7 +405,8 @@ def write_paper_fragments(
         r"\caption{Endogenous continuous segmented-trend break search}",
         r"\begin{tabular}{lrrrrr}",
         r"\toprule",
-        "Measure & Break & 95\\% interval & Pre slope (\\%) & Post slope (\\%) & Bootstrap $p$ " + r"\\",
+        "Measure & Break & 95\\% interval & Pre slope (\\%) & Post slope (\\%) & Bootstrap $p$ "
+        + r"\\",
         r"\midrule",
     ]
     for item in searches:

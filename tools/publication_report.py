@@ -12,12 +12,12 @@ import hashlib
 import json
 import math
 import re
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Sequence
+from typing import Any
 
 import pandas as pd
-
 
 REQUIRED_DOSSIER_FILES: tuple[str, ...] = (
     "core_estimates.csv",
@@ -177,7 +177,9 @@ def _write(path: Path, text: str) -> Path:
     return path
 
 
-def _table_wrapper(*, caption: str, label: str, columns: str, header: str, rows: Iterable[str], note: str) -> str:
+def _table_wrapper(
+    *, caption: str, label: str, columns: str, header: str, rows: Iterable[str], note: str
+) -> str:
     body = "\n".join(rows)
     return f"""% AUTO-GENERATED. DO NOT EDIT.
 \\begin{{table}}[htbp]
@@ -223,7 +225,9 @@ def _core_table(core: pd.DataFrame) -> str:
         se = _fmt_float(row["distributed_lag_std_error"])
         ci = f"[{_fmt_float(row['distributed_lag_ci_low'])}, {_fmt_float(row['distributed_lag_ci_high'])}]"
         p_value = _fmt_float(row["distributed_lag_p_value"])
-        rows.append(f"{driver} ({role}) & {period} & {int(row['n_levels'])} & {estimate} & {se} & {ci} & {p_value} \\\\")
+        rows.append(
+            f"{driver} ({role}) & {period} & {int(row['n_levels'])} & {estimate} & {se} & {ci} & {p_value} \\\\"
+        )
     return _table_wrapper(
         caption="Pre-specified cumulative wage-transmission estimates.",
         label="tab:core-estimates",
@@ -361,7 +365,9 @@ def _decomposition_table(decomposition: pd.DataFrame) -> str:
     )
 
 
-def _primary_results_text(core: pd.DataFrame, cross: pd.DataFrame, reliability: pd.DataFrame) -> str:
+def _primary_results_text(
+    core: pd.DataFrame, cross: pd.DataFrame, reliability: pd.DataFrame
+) -> str:
     primary = core.loc[core["role"] == "primary"]
     if len(primary) != 1:
         raise ValueError("Exactly one primary driver row is required in core_estimates.csv.")
@@ -375,14 +381,24 @@ def _primary_results_text(core: pd.DataFrame, cross: pd.DataFrame, reliability: 
     wage_growth = _fmt_pct_fraction(row.get("annualized_wage_growth"))
     driver_growth = _fmt_pct_fraction(row.get("annualized_driver_growth"))
 
-    eligible_models = reliability.loc[
-        (reliability["driver"] == row["driver"]) & reliability["claim_eligible"].map(_bool_value),
-        "model",
-    ].astype(str).tolist()
-    ineligible_models = reliability.loc[
-        (reliability["driver"] == row["driver"]) & ~reliability["claim_eligible"].map(_bool_value),
-        "model",
-    ].astype(str).tolist()
+    eligible_models = (
+        reliability.loc[
+            (reliability["driver"] == row["driver"])
+            & reliability["claim_eligible"].map(_bool_value),
+            "model",
+        ]
+        .astype(str)
+        .tolist()
+    )
+    ineligible_models = (
+        reliability.loc[
+            (reliability["driver"] == row["driver"])
+            & ~reliability["claim_eligible"].map(_bool_value),
+            "model",
+        ]
+        .astype(str)
+        .tolist()
+    )
 
     cross_primary = cross.loc[cross["driver"] == row["driver"]]
     cross_sentence = "Cross-country context was unavailable."
@@ -398,7 +414,7 @@ def _primary_results_text(core: pd.DataFrame, cross: pd.DataFrame, reliability: 
     ineligible_text = ", ".join(_escape_latex(item) for item in ineligible_models) or "none"
     return f"""% AUTO-GENERATED. DO NOT EDIT.
 \\subsection{{Pre-specified primary result}}
-The primary specification uses {_escape_latex(driver)}. Over {int(row['start_year'])}--{int(row['end_year'])}, annualised real wage growth was {wage_growth} and annualised driver growth was {driver_growth}. The pre-specified cumulative distributed-lag estimate was $\\hat{{\\Theta}}={estimate}$ (HAC SE {se}; 95\\% CI [{low}, {high}]; $p={p_value}$). This is a reduced-form association and is not interpreted causally.
+The primary specification uses {_escape_latex(driver)}. Over {int(row["start_year"])}--{int(row["end_year"])}, annualised real wage growth was {wage_growth} and annualised driver growth was {driver_growth}. The pre-specified cumulative distributed-lag estimate was $\\hat{{\\Theta}}={estimate}$ (HAC SE {se}; 95\\% CI [{low}, {high}]; $p={p_value}$). This is a reduced-form association and is not interpreted causally.
 
 {cross_sentence}
 
@@ -456,19 +472,31 @@ def build_paper_packet(*, dossier_dir: Path, paper_dir: Path) -> PaperPacket:
     reliability = pd.read_csv(dossier_dir / "reliability_gates.csv")
     cross = pd.read_csv(dossier_dir / "cross_country_summary.csv")
 
-    results_primary = _write(generated / "results_primary.tex", _primary_results_text(core, cross, reliability))
+    results_primary = _write(
+        generated / "results_primary.tex", _primary_results_text(core, cross, reliability)
+    )
     core_table = _write(generated / "table_core_estimates.tex", _core_table(core))
     reliability_table = _write(generated / "table_reliability.tex", _reliability_table(reliability))
     cross_table = _write(generated / "table_cross_country.tex", _cross_country_table(cross))
-    markdown_summary = _write(generated / "results_summary.md", _markdown_summary(core, cross, reliability))
+    markdown_summary = _write(
+        generated / "results_summary.md", _markdown_summary(core, cross, reliability)
+    )
 
     decomposition_table: Path | None = None
     decomposition_path = dossier_dir / "decomposition_summary.csv"
     if decomposition_path.is_file():
         decomposition = pd.read_csv(decomposition_path)
-        decomposition_table = _write(generated / "table_decomposition.tex", _decomposition_table(decomposition))
+        decomposition_table = _write(
+            generated / "table_decomposition.tex", _decomposition_table(decomposition)
+        )
 
-    generated_paths = [results_primary, core_table, reliability_table, cross_table, markdown_summary]
+    generated_paths = [
+        results_primary,
+        core_table,
+        reliability_table,
+        cross_table,
+        markdown_summary,
+    ]
     if decomposition_table is not None:
         generated_paths.append(decomposition_table)
 
@@ -482,9 +510,7 @@ def build_paper_packet(*, dossier_dir: Path, paper_dir: Path) -> PaperPacket:
         "primary_driver": dossier_manifest.get("primary_driver"),
         "primary_estimand": dossier_manifest.get("primary_estimand"),
         "inputs": {
-            path.name: sha256_file(path)
-            for path in sorted(dossier_dir.iterdir())
-            if path.is_file()
+            path.name: sha256_file(path) for path in sorted(dossier_dir.iterdir()) if path.is_file()
         },
         "outputs": {f"generated/{path.name}": sha256_file(path) for path in generated_paths},
     }
@@ -570,7 +596,9 @@ def _build_parser() -> argparse.ArgumentParser:
     build.add_argument("--dossier", type=Path, required=True)
     build.add_argument("--paper-dir", type=Path, default=Path("paper"))
 
-    audit = subparsers.add_parser("audit", help="Audit generated paper fragments and manual-source rules.")
+    audit = subparsers.add_parser(
+        "audit", help="Audit generated paper fragments and manual-source rules."
+    )
     audit.add_argument("--paper-dir", type=Path, default=Path("paper"))
     audit.add_argument(
         "--manifest",

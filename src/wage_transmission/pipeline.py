@@ -17,7 +17,11 @@ from wage_transmission.models.ecm import select_ecm_lags
 from wage_transmission.models.local_projections import fit_local_projections
 from wage_transmission.models.state_space import fit_time_varying_elasticity
 from wage_transmission.models.structural_breaks import fit_structural_breaks
-from wage_transmission.plots import plot_levels, plot_local_projections, plot_time_varying_elasticity
+from wage_transmission.plots import (
+    plot_levels,
+    plot_local_projections,
+    plot_time_varying_elasticity,
+)
 from wage_transmission.reporting import write_json
 from wage_transmission.validation import add_log_growth_columns, validate_level_frame
 

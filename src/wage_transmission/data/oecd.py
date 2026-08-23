@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from io import StringIO
 from pathlib import Path
-from typing import Literal, Mapping
+from typing import Literal
 from urllib.parse import urlencode
 
 import httpx
@@ -190,9 +191,7 @@ def download_productivity_measure(
     frame, content = _request_csv(url)
     raw_path: Path | None = None
     if raw_dir is not None:
-        raw_path = raw_dir / (
-            f"oecd_{spec.measure.lower()}_{start_year}_{end_year}.csv"
-        )
+        raw_path = raw_dir / (f"oecd_{spec.measure.lower()}_{start_year}_{end_year}.csv")
         write_snapshot(
             content,
             raw_path,

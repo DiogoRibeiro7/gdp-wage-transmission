@@ -66,8 +66,12 @@ def build_source_queries(
                 query_id=f"oecd_{measure.lower()}",
                 source="OECD",
                 purpose=purpose,
-                url=build_oecd_url(PRODUCTIVITY_FLOW, key, start_year=start_year, end_year=end_year),
-                expected_raw_path=str(raw_root / f"oecd_{measure.lower()}_{start_year}_{end_year}.csv"),
+                url=build_oecd_url(
+                    PRODUCTIVITY_FLOW, key, start_year=start_year, end_year=end_year
+                ),
+                expected_raw_path=str(
+                    raw_root / f"oecd_{measure.lower()}_{start_year}_{end_year}.csv"
+                ),
                 flow=PRODUCTIVITY_FLOW,
                 measure=measure,
             )
@@ -142,11 +146,23 @@ def audit_source_freeze(queries: tuple[SourceQuery, ...]) -> pd.DataFrame:
                     mismatches.append("url")
                 if verified.query_id is not None and verified.query_id != query.query_id:
                     mismatches.append("query_id")
-                if query.dataset is not None and verified.dataset is not None and verified.dataset != query.dataset:
+                if (
+                    query.dataset is not None
+                    and verified.dataset is not None
+                    and verified.dataset != query.dataset
+                ):
                     mismatches.append("dataset")
-                if query.flow is not None and verified.flow is not None and verified.flow != query.flow:
+                if (
+                    query.flow is not None
+                    and verified.flow is not None
+                    and verified.flow != query.flow
+                ):
                     mismatches.append("flow")
-                if query.measure is not None and verified.measure is not None and verified.measure != query.measure:
+                if (
+                    query.measure is not None
+                    and verified.measure is not None
+                    and verified.measure != query.measure
+                ):
                     mismatches.append("measure")
                 if mismatches:
                     status = "invalid"
@@ -168,7 +184,11 @@ def audit_source_freeze(queries: tuple[SourceQuery, ...]) -> pd.DataFrame:
                 "message": message,
             }
         )
-    return pd.DataFrame.from_records(records).sort_values(["source", "query_id"]).reset_index(drop=True)
+    return (
+        pd.DataFrame.from_records(records)
+        .sort_values(["source", "query_id"])
+        .reset_index(drop=True)
+    )
 
 
 def source_queries_from_manifest(payload: dict[str, object]) -> tuple[SourceQuery, ...]:

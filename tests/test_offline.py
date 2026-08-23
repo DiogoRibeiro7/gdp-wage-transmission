@@ -7,11 +7,11 @@ import pandas as pd
 import pytest
 
 from wage_transmission.data.common import write_snapshot
+from wage_transmission.data.oecd import PRODUCTIVITY_FLOW, WAGE_FLOW
 from wage_transmission.data.offline import (
     build_decomposition_from_snapshots,
     build_oecd_panel_from_snapshots,
 )
-from wage_transmission.data.oecd import PRODUCTIVITY_FLOW, WAGE_FLOW
 
 
 def test_offline_oecd_panel_filters_constant_price_wages(tmp_path: Path) -> None:
@@ -20,7 +20,12 @@ def test_offline_oecd_panel_filters_constant_price_wages(tmp_path: Path) -> None
             "REF_AREA": ["PRT", "PRT", "PRT", "PRT"],
             "TIME_PERIOD": [2023, 2024, 2023, 2024],
             "OBS_VALUE": [40_000, 41_000, 50_000, 52_000],
-            "Price base": ["Constant prices", "Constant prices", "Current prices", "Current prices"],
+            "Price base": [
+                "Constant prices",
+                "Constant prices",
+                "Current prices",
+                "Current prices",
+            ],
         }
     )
     productivity = pd.DataFrame(

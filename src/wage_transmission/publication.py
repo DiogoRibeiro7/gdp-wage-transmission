@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
-from pathlib import Path
-from typing import Any, Mapping
-
 import hashlib
 import json
+from collections.abc import Mapping
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Any
+
 import numpy as np
 import pandas as pd
 from scipy.stats import norm
@@ -137,7 +138,11 @@ def read_specification_lock(path: Path) -> SpecificationLock:
     label = payload.get("label")
     version = payload.get("created_with_package_version")
     schema_version = payload.get("schema_version")
-    if not isinstance(label, str) or not isinstance(version, str) or not isinstance(schema_version, int):
+    if (
+        not isinstance(label, str)
+        or not isinstance(version, str)
+        or not isinstance(schema_version, int)
+    ):
         raise ValueError("Specification lock has invalid scalar fields.")
     analysis_code_root = payload.get("analysis_code_root")
     analysis_code_sha256 = payload.get("analysis_code_sha256")
@@ -149,8 +154,12 @@ def read_specification_lock(path: Path) -> SpecificationLock:
         created_with_package_version=version,
         analysis_code_root=analysis_code_root,
         analysis_code_sha256=analysis_code_sha256,
-        project_config=_locked_file_from_payload(payload.get("project_config"), label="project_config"),
-        models_config=_locked_file_from_payload(payload.get("models_config"), label="models_config"),
+        project_config=_locked_file_from_payload(
+            payload.get("project_config"), label="project_config"
+        ),
+        models_config=_locked_file_from_payload(
+            payload.get("models_config"), label="models_config"
+        ),
         publication_config=_locked_file_from_payload(
             payload.get("publication_config"), label="publication_config"
         ),
@@ -161,9 +170,7 @@ def verify_specification_lock(lock: SpecificationLock, *, root: Path = Path(".")
     """Fail if locked configuration, code, or package version changed after pre-registration."""
     mismatches: list[str] = []
     if lock.created_with_package_version != __version__:
-        mismatches.append(
-            f"package_version:{lock.created_with_package_version}!={__version__}"
-        )
+        mismatches.append(f"package_version:{lock.created_with_package_version}!={__version__}")
     code_root = root / lock.analysis_code_root
     try:
         code_hash = _source_tree_sha256(code_root)

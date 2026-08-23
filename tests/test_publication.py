@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
-import json
 import pandas as pd
 import pytest
 
@@ -32,7 +32,9 @@ def _write_model_result(path: Path, *, estimate: float, cointegrated: bool) -> N
         },
         "reliability": {
             "cointegration_supported_5pct": cointegrated,
-            "ecm_long_run_interpretation": "supported" if cointegrated else "unsupported_without_cointegration",
+            "ecm_long_run_interpretation": "supported"
+            if cointegrated
+            else "unsupported_without_cointegration",
             "asymmetry_min_shock_count": 6,
             "asymmetry_interpretation": "underpowered_shock_balance",
             "state_space_latest_z_score": 0.5,
@@ -118,7 +120,6 @@ def test_specification_lock_detects_config_change(tmp_path: Path) -> None:
         verify_specification_lock(loaded, root=Path("."))
 
 
-
 def test_specification_lock_detects_analysis_code_change(tmp_path: Path) -> None:
     project = tmp_path / "project.yml"
     models = tmp_path / "models.yml"
@@ -144,6 +145,7 @@ def test_specification_lock_detects_analysis_code_change(tmp_path: Path) -> None
     code_file.write_text("VALUE = 2\n", encoding="utf-8")
     with pytest.raises(ValueError, match="code_hash_mismatch"):
         verify_specification_lock(loaded, root=Path("."))
+
 
 def test_publication_dossier_enforces_reliability_gates(tmp_path: Path) -> None:
     project = tmp_path / "project.yml"

@@ -176,11 +176,15 @@ def build_decomposition_from_snapshots(
     merged: pd.DataFrame | None = None
     for value_name, frame in series_frames.items():
         current = frame.loc[:, ["country", "year", value_name]].copy()
-        merged = current if merged is None else merged.merge(
-            current,
-            on=["country", "year"],
-            how="inner",
-            validate="one_to_one",
+        merged = (
+            current
+            if merged is None
+            else merged.merge(
+                current,
+                on=["country", "year"],
+                how="inner",
+                validate="one_to_one",
+            )
         )
     if merged is None:
         return pd.DataFrame(columns=["country", "year", *source_specs])

@@ -78,7 +78,9 @@ def decompose_real_wage_growth(frame: pd.DataFrame) -> pd.DataFrame:
     )
 
     def dlog(column: str) -> pd.Series:
-        return np.log(data[column]).diff()
+        # numpy ufuncs are untyped over Series input; bind the result to keep strict mode happy.
+        growth: pd.Series = np.log(data[column]).diff()
+        return growth
 
     data["real_gdp_component"] = dlog("real_gdp")
     data["labour_share_component"] = dlog("labour_share")
@@ -119,7 +121,7 @@ def summarise_decomposition(
         country=country,
         start_year=int(frame["year"].min()),
         end_year=int(frame["year"].max()),
-        n_growth_observations=int(len(growth)),
+        n_growth_observations=len(growth),
         observed_real_wage_log_change=float(growth["observed_real_wage_growth"].sum()),
         real_gdp_log_contribution=float(growth["real_gdp_component"].sum()),
         labour_share_log_contribution=float(growth["labour_share_component"].sum()),

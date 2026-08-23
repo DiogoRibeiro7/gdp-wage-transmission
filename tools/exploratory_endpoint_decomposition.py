@@ -16,9 +16,10 @@ import argparse
 import hashlib
 import json
 import math
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -160,9 +161,7 @@ def calculate_endpoint_decomposition(
 
     start = data.iloc[0]
     end = data.iloc[1]
-    start_labour_share = float(
-        start["employee_compensation_m_eur"] / start["nominal_gdp_m_eur"]
-    )
+    start_labour_share = float(start["employee_compensation_m_eur"] / start["nominal_gdp_m_eur"])
     end_labour_share = float(end["employee_compensation_m_eur"] / end["nominal_gdp_m_eur"])
 
     partial_rows = [

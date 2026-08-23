@@ -6,7 +6,6 @@ import math
 
 import pandas as pd
 import pytest
-
 from tools.exploratory_annual_decomposition import calculate_annual_decomposition
 
 

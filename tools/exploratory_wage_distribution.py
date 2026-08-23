@@ -16,9 +16,9 @@ import argparse
 import hashlib
 import json
 import math
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -111,7 +111,9 @@ def compare_productivity_endpoints(
         prod["productivity_per_worker"], errors="coerce"
     )
     if prod.isna().any().any() or (prod["productivity_per_worker"] <= 0.0).any():
-        raise ValueError("Productivity endpoint input must contain positive finite year/value pairs.")
+        raise ValueError(
+            "Productivity endpoint input must contain positive finite year/value pairs."
+        )
     prod["year"] = prod["year"].astype(int)
     merged = panel.merge(prod, on="year", how="inner", validate="one_to_one").sort_values("year")
     if len(merged) < 2:
@@ -236,9 +238,7 @@ def october_hicp(monthly_hicp: pd.DataFrame) -> pd.DataFrame:
 
     data = monthly_hicp.loc[:, ["date", "hicp_index_2025_100"]].copy()
     data["date"] = pd.to_datetime(data["date"], errors="coerce")
-    data["hicp_index_2025_100"] = pd.to_numeric(
-        data["hicp_index_2025_100"], errors="coerce"
-    )
+    data["hicp_index_2025_100"] = pd.to_numeric(data["hicp_index_2025_100"], errors="coerce")
     if data["date"].isna().any() or data["hicp_index_2025_100"].isna().any():
         raise ValueError("HICP dates and values must be parseable and complete.")
     if (data["hicp_index_2025_100"] <= 0.0).any():
@@ -309,7 +309,7 @@ def summarise_distribution(panel: pd.DataFrame) -> DistributionSummary:
         geography="Mainland Portugal (Continente)",
         start_year=int(start["year"]),
         end_year=int(end["year"]),
-        n_years=int(len(data)),
+        n_years=len(data),
         publication_eligible=False,
         population_definition=POPULATION_DEFINITION,
         nominal_mean_growth_pct=_growth_pct(
@@ -447,7 +447,9 @@ def write_outputs(
     if productivity_path is not None:
         productivity_frame = pd.read_csv(productivity_path)
         productivity_comparison = compare_productivity_endpoints(panel, productivity_frame)
-        productivity_output = output_dir / "portugal_wage_distribution_productivity_endpoints_2002_2023.json"
+        productivity_output = (
+            output_dir / "portugal_wage_distribution_productivity_endpoints_2002_2023.json"
+        )
         productivity_output.write_text(
             json.dumps(asdict(productivity_comparison), indent=2, sort_keys=True) + "\n"
         )
@@ -465,7 +467,11 @@ def write_outputs(
             str(historical_path): sha256_file(historical_path),
             str(current_path): sha256_file(current_path),
             str(hicp_path): sha256_file(hicp_path),
-            **({str(productivity_path): sha256_file(productivity_path)} if productivity_path is not None else {}),
+            **(
+                {str(productivity_path): sha256_file(productivity_path)}
+                if productivity_path is not None
+                else {}
+            ),
         },
         "source_urls": SOURCE_URLS,
         "source_notes": {
@@ -478,7 +484,11 @@ def write_outputs(
             panel_path.name: sha256_file(panel_path),
             growth_path.name: sha256_file(growth_path),
             summary_path.name: sha256_file(summary_path),
-            **({productivity_output.name: sha256_file(productivity_output)} if productivity_output is not None else {}),
+            **(
+                {productivity_output.name: sha256_file(productivity_output)}
+                if productivity_output is not None
+                else {}
+            ),
         },
     }
     (output_dir / "WAGE_DISTRIBUTION_PROVENANCE.json").write_text(

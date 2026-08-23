@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
-
 from tools.exploratory_wage_distribution import (
     build_distribution_panel,
     decile_growth_table,

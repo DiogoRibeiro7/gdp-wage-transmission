@@ -15,7 +15,9 @@ def synthetic_levels() -> pd.DataFrame:
     wage_growth[0] = 0.01
     for idx in range(1, len(years)):
         beta = 0.85 if years[idx] < 1995 else 0.45
-        wage_growth[idx] = 0.002 + beta * prod_growth[idx] + 0.15 * wage_growth[idx - 1] + rng.normal(0, 0.008)
+        wage_growth[idx] = (
+            0.002 + beta * prod_growth[idx] + 0.15 * wage_growth[idx - 1] + rng.normal(0, 0.008)
+        )
     productivity = 25.0 * np.exp(np.cumsum(prod_growth))
     wage = 18000.0 * np.exp(np.cumsum(wage_growth))
     return pd.DataFrame({"year": years, "real_wage": wage, "productivity": productivity})

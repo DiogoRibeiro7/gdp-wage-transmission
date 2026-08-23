@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import json
+from pathlib import Path
 
 import pandas as pd
 import typer
@@ -17,11 +16,21 @@ from wage_transmission.cross_country import (
     write_country_robustness,
 )
 from wage_transmission.data.common import sha256_bytes
+from wage_transmission.data.eurostat import download_decomposition_inputs, download_real_gdp
 from wage_transmission.data.fetch import FetchPolicy, fetch_source_freeze
+from wage_transmission.data.oecd import (
+    canonicalise_average_wages,
+    canonicalise_gdp_per_employed,
+    canonicalise_productivity,
+    download_average_wages,
+    download_gdp_per_employed,
+    download_productivity,
+)
 from wage_transmission.data.offline import (
     build_decomposition_from_snapshots,
     build_oecd_panel_from_snapshots,
 )
+from wage_transmission.data.panel import add_driver, add_real_gdp, merge_wages_productivity
 from wage_transmission.data.revisions import compare_vintages
 from wage_transmission.data.snapshots import (
     import_external_snapshot,
@@ -33,25 +42,15 @@ from wage_transmission.data.source_queries import (
     build_source_queries,
     source_queries_from_manifest,
 )
-from wage_transmission.data.eurostat import download_decomposition_inputs, download_real_gdp
-from wage_transmission.data.oecd import (
-    canonicalise_average_wages,
-    canonicalise_gdp_per_employed,
-    canonicalise_productivity,
-    download_average_wages,
-    download_gdp_per_employed,
-    download_productivity,
-)
-from wage_transmission.data.panel import add_driver, add_real_gdp, merge_wages_productivity
 from wage_transmission.decomposition import decompose_panel
 from wage_transmission.pipeline import analyse_country
 from wage_transmission.plots import plot_cumulative_decomposition, plot_decomposition_components
-from wage_transmission.reporting import write_json
 from wage_transmission.publication import (
     build_publication_dossier,
     build_specification_lock,
     write_specification_lock,
 )
+from wage_transmission.reporting import write_json
 from wage_transmission.version import __version__
 
 app = typer.Typer(no_args_is_help=True, help="GDP–wage transmission research pipeline.")
@@ -145,7 +144,9 @@ def download_oecd(
     wage_download = download_average_wages(
         countries, start_year=start, end_year=end, raw_dir=resolved_raw_dir
     )
-    productivity_download = download_productivity(countries, start_year=start, end_year=end, raw_dir=resolved_raw_dir)
+    productivity_download = download_productivity(
+        countries, start_year=start, end_year=end, raw_dir=resolved_raw_dir
+    )
     wages = canonicalise_average_wages(wage_download.frame)
     productivity = canonicalise_productivity(productivity_download.frame)
     panel = merge_wages_productivity(wages, productivity)
@@ -197,9 +198,7 @@ def download_decomposition(
     end_year: int | None = typer.Option(None, "--end-year"),
     raw_dir: Path = typer.Option(Path("data/raw"), "--raw-dir"),
     vintage: str | None = typer.Option(None, "--vintage"),
-    output: Path = typer.Option(
-        Path("data/processed/decomposition_inputs.csv"), "--output"
-    ),
+    output: Path = typer.Option(Path("data/processed/decomposition_inputs.csv"), "--output"),
     coverage_output: Path = typer.Option(
         Path("data/processed/decomposition_coverage.csv"), "--coverage-output"
     ),
@@ -283,7 +282,9 @@ def download_data(
     wage_download = download_average_wages(
         countries, start_year=start, end_year=end, raw_dir=resolved_raw_dir
     )
-    productivity_download = download_productivity(countries, start_year=start, end_year=end, raw_dir=resolved_raw_dir)
+    productivity_download = download_productivity(
+        countries, start_year=start, end_year=end, raw_dir=resolved_raw_dir
+    )
     wages = canonicalise_average_wages(wage_download.frame)
     productivity = canonicalise_productivity(productivity_download.frame)
     panel = merge_wages_productivity(wages, productivity)
@@ -538,9 +539,7 @@ def build_decomposition_from_frozen(
 ) -> None:
     """Build decomposition inputs from frozen Eurostat JSON-stat payloads without HTTP."""
     config = yaml.safe_load(project_config.read_text(encoding="utf-8"))
-    countries = [
-        str(value) for value in config.get("decomposition_countries", config["countries"])
-    ]
+    countries = [str(value) for value in config.get("decomposition_countries", config["countries"])]
     start = int(config["start_year"])
     end = int(config["end_year"])
     panel = build_decomposition_from_snapshots(
@@ -602,15 +601,17 @@ if __name__ == "__main__":
 
 @app.command("lock-publication-spec")
 def lock_publication_spec(
-    project_config: Path = typer.Option(Path("config/project.yml"), "--project-config", exists=True, readable=True),
-    models_config: Path = typer.Option(Path("config/models.yml"), "--models-config", exists=True, readable=True),
+    project_config: Path = typer.Option(
+        Path("config/project.yml"), "--project-config", exists=True, readable=True
+    ),
+    models_config: Path = typer.Option(
+        Path("config/models.yml"), "--models-config", exists=True, readable=True
+    ),
     publication_config: Path = typer.Option(
         Path("config/publication.yml"), "--publication-config", exists=True, readable=True
     ),
     label: str = typer.Option("pre-source-freeze-2026-08-22", "--label"),
-    output: Path = typer.Option(
-        Path("paper/specification_lock.json"), "--output"
-    ),
+    output: Path = typer.Option(Path("paper/specification_lock.json"), "--output"),
 ) -> None:
     """Freeze pre-results configuration hashes; never overwrite a different existing lock."""
     lock = build_specification_lock(
@@ -628,7 +629,9 @@ def lock_publication_spec(
 
 @app.command("build-publication-dossier")
 def build_publication_dossier_command(
-    results_root: Path = typer.Option(..., "--results-root", exists=True, file_okay=False, readable=True),
+    results_root: Path = typer.Option(
+        ..., "--results-root", exists=True, file_okay=False, readable=True
+    ),
     specification_lock: Path = typer.Option(
         Path("paper/specification_lock.json"),
         "--specification-lock",

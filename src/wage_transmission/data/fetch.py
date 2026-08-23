@@ -11,10 +11,10 @@ from __future__ import annotations
 import csv
 import json
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from io import StringIO
 from pathlib import Path
-from typing import Callable
 
 import httpx
 import pandas as pd
@@ -136,12 +136,20 @@ def _existing_verified(query: SourceQuery) -> FetchResult | None:
             f"Existing snapshot flow mismatch for {query.query_id}: "
             f"metadata has {verified.flow!r}, manifest has {query.flow!r}."
         )
-    if query.dataset is not None and verified.dataset is not None and verified.dataset != query.dataset:
+    if (
+        query.dataset is not None
+        and verified.dataset is not None
+        and verified.dataset != query.dataset
+    ):
         raise ValueError(
             f"Existing snapshot dataset mismatch for {query.query_id}: "
             f"metadata has {verified.dataset!r}, manifest has {query.dataset!r}."
         )
-    if query.measure is not None and verified.measure is not None and verified.measure != query.measure:
+    if (
+        query.measure is not None
+        and verified.measure is not None
+        and verified.measure != query.measure
+    ):
         raise ValueError(
             f"Existing snapshot measure mismatch for {query.query_id}: "
             f"metadata has {verified.measure!r}, manifest has {query.measure!r}."

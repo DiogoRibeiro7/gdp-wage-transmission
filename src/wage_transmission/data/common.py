@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -61,7 +61,7 @@ def write_snapshot(
         **metadata,
         "provenance_schema_version": PROVENANCE_SCHEMA_VERSION,
         "retrieval_method": method,
-        "retrieved_at_utc": datetime.now(timezone.utc).isoformat(),
+        "retrieved_at_utc": datetime.now(UTC).isoformat(),
         "sha256": digest,
         "bytes": len(content),
     }
