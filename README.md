@@ -282,7 +282,7 @@ analysis source tree:
 
 ```bash
 poetry run wage-transmission lock-publication-spec \
-  --label pre-source-freeze-2026-08-22 \
+  --label post-tooling-relock-2026-08-23 \
   --output paper/specification_lock.json
 ```
 

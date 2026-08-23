@@ -1,6 +1,12 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite this repository and the study release used for the data snapshot."
 title: "GDP–Wage Transmission"
+abstract: >-
+  A reproducible empirical research repository for studying how economic growth and labour
+  productivity transmit into real wages, how quickly that transmission occurs, and whether the
+  relationship changes over time. The primary country is Portugal, with cross-country robustness
+  analysis. Estimated break dates are searched for rather than assumed, and every published number
+  is bound to a source freeze and a specification lock.
 type: software
 authors:
   - family-names: "Ribeiro"
@@ -8,3 +14,12 @@ authors:
 version: 0.6.0
 date-released: 2026-08-22
 license: MIT
+repository-code: "https://github.com/DiogoRibeiro7/gdp-wage-transmission"
+url: "https://github.com/DiogoRibeiro7/gdp-wage-transmission"
+keywords:
+  - economics
+  - labour economics
+  - wage transmission
+  - productivity
+  - time series econometrics
+  - reproducible research

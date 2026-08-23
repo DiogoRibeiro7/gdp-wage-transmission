@@ -65,7 +65,9 @@ def write_snapshot(
         "sha256": digest,
         "bytes": len(content),
     }
-    meta_path.write_text(json.dumps(enriched, indent=2, sort_keys=True), encoding="utf-8")
+    meta_path.write_text(
+        json.dumps(enriched, indent=2, sort_keys=True), encoding="utf-8", newline="\n"
+    )
     return destination, meta_path
 
 

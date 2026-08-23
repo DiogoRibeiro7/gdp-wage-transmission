@@ -1,4 +1,4 @@
-.PHONY: help install hooks format format-check lint typecheck test coverage check build clean demo spec-lock freeze-plan freeze-fetch freeze-audit snapshot-registry publication-gate publication-dossier paper-packet paper-audit paper2-breaks paper2-pdf
+.PHONY: help install hooks format format-check lint typecheck test coverage check build clean integrity release-manifest release-manifest-verify paper2-lock paper2-lock-verify demo spec-lock freeze-plan freeze-fetch freeze-audit snapshot-registry publication-gate publication-dossier paper-packet paper-audit paper2-breaks paper2-pdf
 
 # Default target: list the documented entry points.
 help:
@@ -38,12 +38,26 @@ clean: ## Remove build, cache and coverage artefacts
 	rm -rf dist build htmlcov .coverage coverage.xml
 	rm -rf .pytest_cache .mypy_cache .ruff_cache
 
+integrity: release-manifest-verify paper2-lock-verify ## Verify every recorded integrity artefact
+
+release-manifest: ## Regenerate RELEASE_MANIFEST.sha256 over its resolved scope
+	poetry run python tools/integrity.py release-manifest write
+
+release-manifest-verify: ## Check RELEASE_MANIFEST.sha256 against the working tree
+	poetry run python tools/integrity.py release-manifest verify
+
+paper2-lock: ## Recompute the Paper 2 analysis-lock digests
+	poetry run python tools/integrity.py analysis-lock write
+
+paper2-lock-verify: ## Check the Paper 2 analysis lock against the working tree
+	poetry run python tools/integrity.py analysis-lock verify
+
 demo: ## Run the pipeline against the bundled synthetic sample
 	poetry run wage-transmission analyse --input data/sample/synthetic_portugal.csv --country PRT --output results/demo
 
 spec-lock:
 	poetry run wage-transmission lock-publication-spec \
-		--label pre-source-freeze-2026-08-22 \
+		--label post-tooling-relock-2026-08-23 \
 		--output paper/specification_lock.json
 
 freeze-plan:

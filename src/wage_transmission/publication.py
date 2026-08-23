@@ -54,7 +54,8 @@ class PublicationDossierResult:
 
 
 def _file_lock(path: Path) -> LockedFile:
-    return LockedFile(path=str(path), sha256=sha256_bytes(path.read_bytes()))
+    # POSIX form keeps a lock written on Windows verifiable on Linux CI.
+    return LockedFile(path=path.as_posix(), sha256=sha256_bytes(path.read_bytes()))
 
 
 def _source_tree_sha256(root: Path) -> str:
@@ -93,7 +94,7 @@ def build_specification_lock(
         schema_version=1,
         label=clean_label,
         created_with_package_version=__version__,
-        analysis_code_root=str(analysis_code_root),
+        analysis_code_root=analysis_code_root.as_posix(),
         analysis_code_sha256=_source_tree_sha256(analysis_code_root),
         project_config=_file_lock(project_config),
         models_config=_file_lock(models_config),
@@ -112,7 +113,8 @@ def write_specification_lock(lock: SpecificationLock, output: Path) -> Path:
                 f"Specification lock already exists with different content: {output}"
             )
         return output
-    output.write_text(candidate, encoding="utf-8")
+    # LF explicitly: artefact bytes are hashed, so they must not depend on the platform.
+    output.write_text(candidate, encoding="utf-8", newline="\n")
     return output
 
 
@@ -493,7 +495,7 @@ def _write_markdown_summary(
             ]
         )
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    output.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
     return output
 
 

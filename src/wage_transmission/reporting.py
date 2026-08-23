@@ -25,7 +25,10 @@ def _json_default(value: Any) -> Any:
 def write_json(value: Any, path: Path) -> Path:
     """Write a typed model result to stable, human-readable JSON."""
     path.parent.mkdir(parents=True, exist_ok=True)
+    # LF explicitly: result bytes are hashed into the publication dossier.
     path.write_text(
-        json.dumps(value, default=_json_default, indent=2, sort_keys=True), encoding="utf-8"
+        json.dumps(value, default=_json_default, indent=2, sort_keys=True),
+        encoding="utf-8",
+        newline="\n",
     )
     return path

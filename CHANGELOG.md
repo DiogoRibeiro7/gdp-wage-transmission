@@ -1,5 +1,73 @@
 # Changelog
 
+## Repository engineering revision — 2026-08-23
+
+An infrastructure-only revision. It changes **no estimator, no specification and no estimated
+number**; it makes the repository's quality gates, packaging and integrity artefacts reproducible.
+
+### Added
+
+- `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, issue forms (including a dedicated
+  data-and-reproducibility form), a pull-request template and `CODEOWNERS`.
+- `tools/integrity.py`, which writes and verifies the Paper 2 analysis lock and
+  `RELEASE_MANIFEST.sha256`. Both artefacts previously existed without a generator, so their
+  digests could not be recomputed by a reader.
+- Dependabot updates, grouped so the scientific stack is reviewed separately from dev tooling.
+- `.gitattributes`, `poetry.lock`, and `make` targets for `format`, `coverage`, `build` and `clean`.
+
+### Changed
+
+- Project metadata moved to PEP 621 with an SPDX licence, classifiers and project URLs.
+- CI split into a quality job, a 3.11–3.13 test matrix and a build job that installs the wheel and
+  checks the console entry point; runs are cached, concurrency-limited and read-only by default.
+- `ruff format` applied across the tree (29 files); ruff now knows that Typer declares CLI metadata
+  in argument defaults and that en dashes in economic notation are intentional.
+- pytest resolves the repository root, so the `tools/` suites no longer need a `PYTHONPATH` prefix.
+
+### Fixed
+
+- **Hashed artefacts were platform-dependent in two ways.** `write_specification_lock` serialised
+  `str(path)`, so a lock written on Windows recorded backslash paths and failed verification on
+  Linux CI; and the specification lock, snapshot provenance metadata, model result JSON and the
+  dossier summary were all written with the platform's line ending, so the same results hashed
+  differently on Windows and Linux. Paths are now stored in POSIX form and every hashed artefact is
+  written with LF, both covered by regression tests.
+- `_json_default` passed dataclass *types* to `asdict`, which only accepts instances.
+- Three lint-level defects: a swallowed `ValueError`, a manual successive-pair `zip`, and a
+  bootstrap quantile whose `int(round(...))` cast depended on numpy scalar rounding.
+
+### Specification locks re-issued
+
+Formatting the package changed the bytes both locks hash, so both were re-issued. The previous
+digests are recorded here so the transition stays auditable:
+
+| Artefact | Before | After |
+| --- | --- | --- |
+| `paper/specification_lock.json` label | `pre-source-freeze-2026-08-22` | `post-tooling-relock-2026-08-23` |
+| `analysis_code_sha256` (`src/wage_transmission`) | `c71ac9313e45242a8ecd9c7bce5b6d7e0b84c8c8ecb07b17c5c0df20d9e3b2a2` | `cbad65d0947e9a2974d4299468936a4da95ac61466b6200f37aba32ce49cdb2b` |
+| `tools/wage_distribution_breaks.py` | `68c18ca853985d778e7a3e0d939764b89c47c3436cd069de45dbdf77e193043f` | `d278b06eae6882ccab0977d04fae3dafef7d07a8b335129d56a18c926cc90d3f` |
+| Paper 2 `combined_sha256` | `c1c00f2db2a9a9cf5903c020495edab53d4d0be1bd96509fb94906208d653199` | recomputed by `tools/integrity.py` |
+
+The previous Paper 2 `combined_sha256` is **not reproducible** from the repository: no generator
+existed, and it does not follow from the recorded per-file digests under any tested derivation. The
+three per-file digests it recorded do verify exactly against the pre-revision bytes. The combined
+digest is now defined explicitly as SHA-256 over sorted `sha256  path` lines, matching `sha256sum`
+output, and is recomputable with `make paper2-lock-verify`.
+
+This re-lock is **not** a new pre-registration. Paper 1's original lock was created before its
+source freeze; this one records the same specification after a numerically inert tooling pass, and
+the label says so.
+
+### Validation
+
+- **77 tests pass**: the 67 existing tests, regression tests for POSIX lock paths and LF-only artefact bytes, and eight covering the new integrity tool.
+- `ruff check`, `ruff format --check` and `mypy --strict` are clean; coverage is 68% against a 65%
+  floor (67.78% measured).
+- Equivalence evidence for the re-lock: regenerating Paper 2's LaTeX fragments from the unchanged,
+  hash-verified input CSV with the seeded bootstrap reproduces **byte-identical** output, and
+  Paper 1's dossier and paper-integrity gates in the test suite pass unchanged.
+
+
 ## Exploratory live-data revision 5 — 2026-08-23
 
 This revision adds a **second paper to the same repository** while preserving Paper 1's locked

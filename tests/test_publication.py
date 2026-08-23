@@ -14,6 +14,7 @@ from wage_transmission.publication import (
     verify_specification_lock,
     write_specification_lock,
 )
+from wage_transmission.reporting import write_json
 
 
 def _write_model_result(path: Path, *, estimate: float, cointegrated: bool) -> None:
@@ -96,6 +97,54 @@ def test_publication_config_loads() -> None:
     config = load_publication_config(Path("config/publication.yml"))
     assert config.primary_driver == "productivity_per_worker"
     assert config.primary_estimand == "distributed_lag_cumulative"
+
+
+def test_hashed_artefacts_are_written_with_lf_only(tmp_path: Path) -> None:
+    """Artefact bytes are hashed, so they must not depend on the writing platform."""
+    project = tmp_path / "project.yml"
+    models = tmp_path / "models.yml"
+    publication = tmp_path / "publication.yml"
+    project.write_text("a: 1\n", encoding="utf-8")
+    models.write_text("b: 2\n", encoding="utf-8")
+    publication.write_text("c: 3\n", encoding="utf-8")
+    lock = build_specification_lock(
+        project_config=project,
+        models_config=models,
+        publication_config=publication,
+        label="lf-only",
+    )
+    lock_path = tmp_path / "lock.json"
+    write_specification_lock(lock, lock_path)
+    assert b"\r\n" not in lock_path.read_bytes()
+
+    result_path = tmp_path / "result.json"
+    write_json({"estimate": 0.5, "segments": [1, 2]}, result_path)
+    assert b"\r\n" not in result_path.read_bytes()
+
+
+def test_specification_lock_records_posix_paths(tmp_path: Path) -> None:
+    """A lock written on Windows must stay verifiable on POSIX CI, and vice versa."""
+    project = tmp_path / "nested" / "project.yml"
+    models = tmp_path / "nested" / "models.yml"
+    publication = tmp_path / "nested" / "publication.yml"
+    project.parent.mkdir(parents=True)
+    project.write_text("a: 1\n", encoding="utf-8")
+    models.write_text("b: 2\n", encoding="utf-8")
+    publication.write_text("c: 3\n", encoding="utf-8")
+    lock = build_specification_lock(
+        project_config=project,
+        models_config=models,
+        publication_config=publication,
+        label="posix-paths",
+    )
+    recorded = [
+        lock.analysis_code_root,
+        lock.project_config.path,
+        lock.models_config.path,
+        lock.publication_config.path,
+    ]
+    assert all("\\" not in path for path in recorded)
+    assert lock.analysis_code_root == "src/wage_transmission"
 
 
 def test_specification_lock_detects_config_change(tmp_path: Path) -> None:
