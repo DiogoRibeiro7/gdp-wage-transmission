@@ -1,12 +1,60 @@
+# Run `poetry run pre-commit install` once after cloning.
+# Tool versions are kept in step with poetry.lock so local hooks and CI agree.
+
+default_language_version:
+  python: python3.12
+
+# Committed data, results and generated artefacts are byte-sensitive: whitespace
+# hooks must not touch them.
+exclude: |
+  (?x)^(
+    data/.*|
+    paper/generated/.*|
+    papers/[^/]+/generated/.*|
+    RELEASE_MANIFEST\.sha256|
+    poetry\.lock
+  )$
+
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.9
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
     hooks:
-      - id: ruff
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+        exclude: ^notebooks/.*\.ipynb$
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: debug-statements
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.4
+    hooks:
+      - id: ruff-check
         args: [--fix]
       - id: ruff-format
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.11.2
+
+  # mypy runs from the project environment so it sees the locked stub packages
+  # and the same configuration CI uses.
+  - repo: local
     hooks:
       - id: mypy
-        additional_dependencies: [pandas-stubs]
+        name: mypy (strict, src)
+        entry: poetry run mypy src
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: poetry-lock-check
+        name: poetry lock is in sync with pyproject.toml
+        entry: poetry check --lock
+        language: system
+        files: ^(pyproject\.toml|poetry\.lock)$
+        pass_filenames: false

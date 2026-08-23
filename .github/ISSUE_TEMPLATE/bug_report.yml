@@ -1,0 +1,60 @@
+name: Bug report
+description: Something in the package, CLI or pipeline behaves incorrectly.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please include enough detail for the failure to be reproduced from a clean checkout.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened
+      description: Describe the incorrect behaviour and what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: The exact command or code that triggers the problem.
+      render: shell
+      placeholder: poetry run wage-transmission analyse --input data/sample/synthetic_portugal.csv --country PRT
+    validations:
+      required: true
+
+  - type: textarea
+    id: traceback
+    attributes:
+      label: Traceback or output
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: Package version or commit
+      placeholder: "0.6.0 / 61ba939"
+    validations:
+      required: true
+
+  - type: input
+    id: python
+    attributes:
+      label: Python version and operating system
+      placeholder: "3.12.5, Ubuntu 24.04"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: data
+    attributes:
+      label: Which data was in use
+      options:
+        - Bundled synthetic sample
+        - Frozen reference snapshot under data/reference
+        - A live source freeze fetched from OECD or Eurostat
+        - Own data
+    validations:
+      required: true

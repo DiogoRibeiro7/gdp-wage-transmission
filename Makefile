@@ -1,20 +1,44 @@
-.PHONY: install test lint typecheck check demo spec-lock freeze-plan freeze-fetch freeze-audit snapshot-registry publication-gate publication-dossier paper-packet paper-audit paper2-breaks paper2-pdf
+.PHONY: help install hooks format format-check lint typecheck test coverage check build clean demo spec-lock freeze-plan freeze-fetch freeze-audit snapshot-registry publication-gate publication-dossier paper-packet paper-audit paper2-breaks paper2-pdf
 
-install:
+# Default target: list the documented entry points.
+help:
+	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-22s %s%s", $$1, $$2, ORS}'
+
+install: ## Install runtime and development dependencies from poetry.lock
 	poetry install
 
-test:
-	poetry run pytest
+hooks: ## Install the pre-commit hooks into this checkout
+	poetry run pre-commit install
 
-lint:
+format: ## Rewrite the tree with ruff format and apply safe lint fixes
+	poetry run ruff format .
+	poetry run ruff check --fix .
+
+format-check: ## Fail if the tree is not ruff-formatted
+	poetry run ruff format --check .
+
+lint: ## Run the ruff linter
 	poetry run ruff check .
 
-typecheck:
+typecheck: ## Run mypy in strict mode over the package
 	poetry run mypy src
 
-check: lint typecheck test
+test: ## Run the test suite
+	poetry run pytest
 
-demo:
+coverage: ## Run the test suite with a coverage report
+	poetry run pytest --cov=wage_transmission --cov-report=term-missing --cov-report=html
+
+check: lint format-check typecheck test ## Run every quality gate CI runs
+
+build: ## Build the sdist and wheel
+	poetry build
+
+clean: ## Remove build, cache and coverage artefacts
+	rm -rf dist build htmlcov .coverage coverage.xml
+	rm -rf .pytest_cache .mypy_cache .ruff_cache
+
+demo: ## Run the pipeline against the bundled synthetic sample
 	poetry run wage-transmission analyse --input data/sample/synthetic_portugal.csv --country PRT --output results/demo
 
 spec-lock:

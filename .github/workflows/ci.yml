@@ -4,25 +4,109 @@ on:
   push:
     branches: [main, develop]
   pull_request:
+  workflow_dispatch:
+
+# A newer push to the same branch makes the in-flight run obsolete.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  POETRY_VERSION: "2.2.1"
 
 jobs:
-  test:
+  quality:
+    name: Lint, format and types
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Poetry
+        run: pipx install poetry==${{ env.POETRY_VERSION }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: poetry
+
+      - name: Verify lock file is in sync with pyproject.toml
+        run: poetry check --lock
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Ruff lint
+        run: poetry run ruff check --output-format=github .
+
+      - name: Ruff format
+        run: poetry run ruff format --check .
+
+      - name: Mypy
+        run: poetry run mypy src
+
+  test:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Poetry
+        run: pipx install poetry==${{ env.POETRY_VERSION }}
+
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install Poetry
-        run: pipx install poetry
+          cache: poetry
+
       - name: Install dependencies
-        run: poetry install
-      - name: Ruff
-        run: poetry run ruff check .
-      - name: Mypy
-        run: poetry run mypy src
+        run: poetry install --no-interaction
+
       - name: Pytest
-        run: poetry run pytest --cov=wage_transmission --cov-report=term-missing
+        run: poetry run pytest --cov=wage_transmission --cov-report=term-missing --cov-report=xml
+
+      - name: Upload coverage report
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          retention-days: 14
+
+  build:
+    name: Build distribution
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Poetry
+        run: pipx install poetry==${{ env.POETRY_VERSION }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: poetry
+
+      - name: Build sdist and wheel
+        run: poetry build
+
+      - name: Check that the CLI entry point resolves
+        run: |
+          python -m venv /tmp/smoke
+          /tmp/smoke/bin/pip install --quiet dist/*.whl
+          /tmp/smoke/bin/wage-transmission --help
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distribution
+          path: dist/
+          retention-days: 14

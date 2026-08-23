@@ -1,0 +1,10 @@
+# Default owner for everything in the repository.
+*                       @DiogoRibeiro7
+
+# Frozen empirical surface: specification locks, source manifests and the
+# manuscripts must not drift without an explicit review.
+/paper/                 @DiogoRibeiro7
+/papers/                @DiogoRibeiro7
+/config/                @DiogoRibeiro7
+/data/query_manifests/  @DiogoRibeiro7
+/.github/workflows/     @DiogoRibeiro7

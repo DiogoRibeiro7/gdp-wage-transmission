@@ -1,8 +1,37 @@
 # GDP–Wage Transmission
 
+[![CI](https://github.com/DiogoRibeiro7/gdp-wage-transmission/actions/workflows/ci.yml/badge.svg)](https://github.com/DiogoRibeiro7/gdp-wage-transmission/actions/workflows/ci.yml)
+[![Python 3.11–3.13](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Ruff](https://img.shields.io/badge/lint-ruff-261230.svg)](https://github.com/astral-sh/ruff)
+[![Checked with mypy](https://img.shields.io/badge/types-mypy%20strict-2a6db2.svg)](https://mypy-lang.org/)
+
 A reproducible empirical research repository for studying how economic growth and labour productivity transmit into real wages, how quickly that transmission occurs, and whether the relationship changes over time.
 
 The primary country is **Portugal**. The code is designed from the beginning to support cross-country robustness analysis.
+
+## Contents
+
+- [Research question](#research-question)
+- [Two-paper structure](#two-paper-structure)
+- [Model stack](#model-stack)
+- [Data sources](#data-sources)
+- [Repository layout](#repository-layout)
+- [Frozen Portugal reference audit](#frozen-portugal-reference-audit)
+- [Installation](#installation)
+- [Quick start without network access](#quick-start-without-network-access)
+- [Pre-results publication lock](#pre-results-publication-lock)
+- [Publication source freeze](#publication-source-freeze)
+- [Download official data](#download-official-data)
+- [Core analysis](#core-analysis)
+- [National-accounts decomposition](#national-accounts-decomposition)
+- [Rebuild from frozen responses without network access](#rebuild-from-frozen-responses-without-network-access)
+- [Statistical principles](#statistical-principles)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
+- [Citation](#citation)
+- [License](#license)
+- [Status](#status)
 
 ## Research question
 
@@ -211,18 +240,27 @@ See [`docs/live_data_wage_distribution_audit.md`](docs/live_data_wage_distributi
 
 ## Installation
 
-The project uses Poetry.
+The project targets Python 3.11–3.13 and uses [Poetry](https://python-poetry.org/) 2.x. Dependencies
+are pinned in `poetry.lock`, so an install reproduces the exact versions CI uses.
 
 ```bash
 poetry install
+poetry run pre-commit install    # optional, but recommended for contributors
 ```
 
-Run the quality checks:
+Run the quality gates, exactly as CI does:
 
 ```bash
-poetry run pytest
+make check                       # ruff check + mypy + pytest
+```
+
+or individually:
+
+```bash
 poetry run ruff check .
+poetry run ruff format --check .
 poetry run mypy src
+poetry run pytest --cov=wage_transmission
 ```
 
 ## Quick start without network access
@@ -468,6 +506,47 @@ The revision table labels each observation `unchanged`, `revised`, `added`, or `
 - Revisions to official data are expected; raw snapshots and metadata make runs auditable.
 - Flexible specifications are accompanied by pre-specified interpretation gates for cointegration, shock balance, break-segment size, local-projection effective sample size, and state-space precision.
 
+## Documentation
+
+Detailed notes live under [`docs/`](docs/):
+
+| Document | Contents |
+| --- | --- |
+| [research_design.md](docs/research_design.md) | Identification strategy and specification hierarchy |
+| [model_notes.md](docs/model_notes.md) | Estimator-by-estimator implementation notes |
+| [data_dictionary.md](docs/data_dictionary.md) | Canonical panel schema and variable definitions |
+| [source_vintages.md](docs/source_vintages.md) | Vintage layout, snapshot registry and revision handling |
+| [reproducibility.md](docs/reproducibility.md) | How to reproduce a published run end to end |
+| [specification_lock.md](docs/specification_lock.md) | What the pre-results lock binds, and how it is verified |
+| [github_source_freeze.md](docs/github_source_freeze.md) | Running the internet-enabled freeze workflow |
+| [paper_generation.md](docs/paper_generation.md) | Building the paper-facing report packet |
+| [portugal_empirical_audit.md](docs/portugal_empirical_audit.md) | Frozen Portugal reference audit |
+
+Live-data audit notes for the exploratory revisions are also in `docs/`, one file per revision.
+
+## Contributing
+
+Contributions are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) describes the development setup, the
+quality gates, and — most importantly — the reproducibility rules that keep published numbers
+defensible: data is never committed, raw snapshots are immutable, and specification locks are not
+edited to make a result fit.
+
+Please also read the [code of conduct](CODE_OF_CONDUCT.md). Security-relevant reports follow
+[SECURITY.md](SECURITY.md); data and reproducibility problems have their own issue template.
+
+## Citation
+
+If you use this software, cite it through [CITATION.cff](CITATION.cff), together with the study
+release used for the data snapshot. GitHub renders a ready-made citation from that file under
+**Cite this repository**.
+
+## License
+
+Released under the MIT License. See [LICENSE](LICENSE).
+
+Note that the licence covers the code in this repository. Data retrieved from OECD and Eurostat
+remains subject to those providers' own terms of use.
+
 ## Status
 
 **v0.6** contains the complete core time-series stack, reliability guardrails, frozen Portugal reference audit, denominator-explicit OECD productivity drivers, exact Eurostat labour-share accounting decomposition, country-specific cross-country estimates with HAC uncertainty, and the source-vintage/revision layer.
@@ -476,4 +555,4 @@ The publication hierarchy is now pre-registered inside the repository. The prima
 
 The configured `2026-08-22` manifest still contains **63 official source queries**. Its bundled audit deliberately reports all 63 as missing because this local environment cannot perform the network fetches; the GitHub Actions workflow is the reproducible internet-enabled path for producing the untouched raw vintage, processed panels, empirical outputs and locked publication dossier.
 
-Validation for the current exploratory reporting revision is **58/58 tests passing** under the source-tree test environment and `compileall` succeeds. The added annual-decomposition tests cover missing and complete `SAL_DC` paths, exact accounting closure, concept labelling and annual-input contracts; the earlier dossier/paper-integrity gates remain in the suite. Ruff and mypy remain configured but are not installed in this local runtime; the GitHub publication workflow runs both as release gates.
+Validation for the current exploratory reporting revision is **67/67 tests passing**. The added annual-decomposition tests cover missing and complete `SAL_DC` paths, exact accounting closure, concept labelling and annual-input contracts; the earlier dossier/paper-integrity gates remain in the suite. Ruff (lint and format) and mypy in strict mode now run clean locally and in CI on Python 3.11, 3.12 and 3.13, in addition to the publication workflow's release gates.

@@ -1,0 +1,29 @@
+version: 2
+
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: monthly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: ["dependencies"]
+    commit-message:
+      prefix: "build"
+      include: scope
+    groups:
+      # Scientific stack upgrades are reviewed together: a numpy or pandas bump
+      # can move estimation output, so they are validated as one change.
+      scientific-stack:
+        patterns: ["numpy", "pandas", "scipy", "statsmodels", "matplotlib"]
+      dev-tooling:
+        patterns: ["ruff", "mypy", "pytest*", "pre-commit", "*-stubs", "types-*"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+      day: monday
+    labels: ["dependencies", "ci"]
+    commit-message:
+      prefix: "ci"

@@ -1,0 +1,33 @@
+name: Feature or model proposal
+description: Propose a new estimator, diagnostic, data source or tooling improvement.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: Which research question does this serve, and what is missing today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: The estimator, diagnostic or interface you have in mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Papers or official methodology notes supporting the specification.
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This does not alter a locked pre-results specification for an existing paper.
+        - label: I have considered how the change would be validated against the synthetic sample.

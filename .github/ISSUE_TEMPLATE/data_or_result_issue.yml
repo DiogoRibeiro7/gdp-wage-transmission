@@ -1,0 +1,51 @@
+name: Data or result issue
+description: A source extract, snapshot digest, or estimated result looks wrong or cannot be reproduced.
+labels: ["data", "reproducibility"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for provenance and reproducibility problems: mismatched SHA-256 digests,
+        revised official series, coverage gaps, or numbers that do not match a locked run.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind of issue
+      options:
+        - Source snapshot digest mismatch
+        - Official series was revised upstream
+        - Coverage gap or missing years
+        - Estimated result does not reproduce
+        - Documentation disagrees with the code
+    validations:
+      required: true
+
+  - type: input
+    id: vintage
+    attributes:
+      label: Source vintage
+      description: The YYYY-MM-DD vintage directory or query manifest involved.
+      placeholder: "2026-08-22"
+    validations:
+      required: true
+
+  - type: textarea
+    id: affected
+    attributes:
+      label: Affected series or artefact
+      description: Dataset, flow, measure, country and years, or the results path.
+      placeholder: |
+        OECD.SDD.TPS,DSD_PDB@DF_PDB,2.0 — GDPHRS — PRT — 1995-2025
+        results/vintages/2026-08-22/portugal_per_hour
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Expected versus observed
+      description: Digests, values, or audit output showing the discrepancy.
+      render: shell
+    validations:
+      required: true
