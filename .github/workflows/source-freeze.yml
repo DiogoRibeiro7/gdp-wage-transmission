@@ -1,0 +1,222 @@
+name: Publication source freeze
+
+on:
+  workflow_dispatch:
+    inputs:
+      vintage:
+        description: "UTC source vintage (YYYY-MM-DD); leave blank to use today's UTC date"
+        required: false
+        default: ""
+      run_analysis:
+        description: "Build processed panels and run the empirical pipeline"
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  freeze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Install project
+        run: poetry install
+
+      - name: Verify pre-results publication specification lock
+        run: |
+          poetry run wage-transmission lock-publication-spec \
+            --label pre-source-freeze-2026-08-22 \
+            --output paper/specification_lock.json
+
+      - name: Resolve publication vintage and configured years
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          VINTAGE="${{ inputs.vintage }}"
+          if [[ -z "$VINTAGE" ]]; then
+            VINTAGE="$(date -u +%F)"
+          fi
+          if [[ ! "$VINTAGE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            echo "Invalid vintage: $VINTAGE" >&2
+            exit 2
+          fi
+          START_YEAR="$(poetry run python -c 'import yaml; print(yaml.safe_load(open("config/project.yml"))["start_year"])')"
+          END_YEAR="$(poetry run python -c 'import yaml; print(yaml.safe_load(open("config/project.yml"))["end_year"])')"
+          echo "vintage=$VINTAGE" >> "$GITHUB_OUTPUT"
+          echo "start_year=$START_YEAR" >> "$GITHUB_OUTPUT"
+          echo "end_year=$END_YEAR" >> "$GITHUB_OUTPUT"
+
+      - name: Export exact official query manifest
+        run: |
+          mkdir -p data/query_manifests
+          poetry run wage-transmission export-source-queries \
+            --vintage "${{ steps.release.outputs.vintage }}" \
+            --output "data/query_manifests/${{ steps.release.outputs.vintage }}.json"
+
+      - name: Fetch and verify publication source freeze
+        run: |
+          poetry run wage-transmission fetch-source-freeze \
+            --query-manifest "data/query_manifests/${{ steps.release.outputs.vintage }}.json" \
+            --output "data/query_manifests/${{ steps.release.outputs.vintage }}.fetch.csv" \
+            --audit-output "data/query_manifests/${{ steps.release.outputs.vintage }}.audit.csv" \
+            --registry data/raw/SNAPSHOT_REGISTRY.csv \
+            --raw-root data/raw \
+            --retries 4 \
+            --timeout 90 \
+            --backoff 1 \
+            --strict
+
+      - name: Rebuild analytical panels from frozen bytes
+        if: ${{ inputs.run_analysis }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VINTAGE="${{ steps.release.outputs.vintage }}"
+          START="${{ steps.release.outputs.start_year }}"
+          END="${{ steps.release.outputs.end_year }}"
+          RAW="data/raw/$VINTAGE"
+          PROCESSED="data/processed/$VINTAGE"
+          mkdir -p "$PROCESSED"
+
+          poetry run wage-transmission build-oecd-from-snapshots \
+            --wage-snapshot "$RAW/oecd_average_wages_${START}_${END}.csv" \
+            --productivity-snapshot "$RAW/oecd_gdphrs_${START}_${END}.csv" \
+            --measure GDPHRS \
+            --output "$PROCESSED/panel_per_hour.csv"
+
+          poetry run wage-transmission build-oecd-from-snapshots \
+            --wage-snapshot "$RAW/oecd_average_wages_${START}_${END}.csv" \
+            --productivity-snapshot "$RAW/oecd_gdpemp_${START}_${END}.csv" \
+            --measure GDPEMP \
+            --output "$PROCESSED/panel_per_worker.csv"
+
+          poetry run wage-transmission build-decomposition-from-snapshots \
+            --raw-dir "$RAW" \
+            --output "$PROCESSED/decomposition_inputs.csv" \
+            --coverage-output "$PROCESSED/decomposition_coverage.csv"
+
+      - name: Run Portugal and cross-country empirical outputs
+        if: ${{ inputs.run_analysis }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VINTAGE="${{ steps.release.outputs.vintage }}"
+          PROCESSED="data/processed/$VINTAGE"
+          RESULTS="results/vintages/$VINTAGE"
+          mkdir -p "$RESULTS"
+
+          poetry run wage-transmission analyse \
+            --input "$PROCESSED/panel_per_hour.csv" \
+            --country PRT \
+            --driver productivity \
+            --output "$RESULTS/portugal_per_hour"
+
+          poetry run wage-transmission analyse \
+            --input "$PROCESSED/panel_per_worker.csv" \
+            --country PRT \
+            --driver productivity_per_worker \
+            --output "$RESULTS/portugal_per_worker"
+
+          poetry run wage-transmission analyse-panel \
+            --input "$PROCESSED/panel_per_hour.csv" \
+            --driver productivity \
+            --output "$RESULTS/cross_country_per_hour.csv"
+
+          poetry run wage-transmission analyse-panel \
+            --input "$PROCESSED/panel_per_worker.csv" \
+            --driver productivity_per_worker \
+            --output "$RESULTS/cross_country_per_worker.csv"
+
+          poetry run wage-transmission decompose \
+            --input "$PROCESSED/decomposition_inputs.csv" \
+            --country PRT \
+            --output "$RESULTS/portugal_decomposition"
+
+          poetry run wage-transmission decompose \
+            --input "$PROCESSED/decomposition_inputs.csv" \
+            --output "$RESULTS/cross_country_decomposition"
+
+      - name: Build locked publication dossier
+        if: ${{ inputs.run_analysis }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VINTAGE="${{ steps.release.outputs.vintage }}"
+          RESULTS="results/vintages/$VINTAGE"
+          poetry run wage-transmission build-publication-dossier \
+            --results-root "$RESULTS" \
+            --specification-lock paper/specification_lock.json \
+            --publication-config config/publication.yml \
+            --output "$RESULTS/publication_dossier"
+
+      - name: Build and audit paper-facing report packet
+        if: ${{ inputs.run_analysis }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VINTAGE="${{ steps.release.outputs.vintage }}"
+          RESULTS="results/vintages/$VINTAGE"
+          poetry run python tools/publication_report.py build \
+            --dossier "$RESULTS/publication_dossier" \
+            --paper-dir paper
+          poetry run python tools/publication_report.py audit \
+            --paper-dir paper \
+            --manifest paper/generated/paper_packet_manifest.json
+
+      - name: Quality gates
+        run: |
+          poetry run ruff check .
+          poetry run mypy src
+          poetry run pytest --cov=wage_transmission --cov-report=term-missing
+
+      - name: Write artifact checksum manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          VINTAGE="${{ steps.release.outputs.vintage }}"
+          {
+            find "data/query_manifests" "data/raw/$VINTAGE" -type f -print0
+            if [[ -d "data/processed/$VINTAGE" ]]; then
+              find "data/processed/$VINTAGE" -type f -print0
+            fi
+            if [[ -d "results/vintages/$VINTAGE" ]]; then
+              find "results/vintages/$VINTAGE" -type f -print0
+            fi
+            if [[ -d "paper/generated" ]]; then
+              find "paper/generated" -type f -print0
+            fi
+            printf '%s\0' paper/main.tex
+          } | sort -z | xargs -0 sha256sum > "publication-freeze-${VINTAGE}.sha256"
+
+      - name: Upload immutable source freeze and empirical outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: publication-freeze-${{ steps.release.outputs.vintage }}
+          if-no-files-found: error
+          retention-days: 90
+          path: |
+            data/query_manifests/${{ steps.release.outputs.vintage }}.json
+            data/query_manifests/${{ steps.release.outputs.vintage }}.fetch.csv
+            data/query_manifests/${{ steps.release.outputs.vintage }}.audit.csv
+            data/raw/SNAPSHOT_REGISTRY.csv
+            data/raw/${{ steps.release.outputs.vintage }}/
+            data/processed/${{ steps.release.outputs.vintage }}/
+            results/vintages/${{ steps.release.outputs.vintage }}/
+            paper/main.tex
+            paper/generated/
+            publication-freeze-${{ steps.release.outputs.vintage }}.sha256

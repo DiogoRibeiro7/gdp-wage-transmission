@@ -1,0 +1,15 @@
+schema_version: 1
+primary_country: PRT
+primary_driver: productivity_per_worker
+secondary_drivers:
+  - productivity
+primary_estimand: distributed_lag_cumulative
+alpha: 0.05
+cross_country_primary_object: country_specific_estimates
+cross_country_summary_estimator: random_effects
+ecm_policy: reliability_gated
+state_space_policy: reliability_gated
+structural_break_policy: reliability_gated
+local_projection_policy: supported_horizons_only
+asymmetry_policy: reliability_gated
+decomposition_policy: accounting_identity_not_causal

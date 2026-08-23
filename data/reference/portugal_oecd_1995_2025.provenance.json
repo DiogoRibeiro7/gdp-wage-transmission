@@ -1,0 +1,23 @@
+{
+  "analysis_role": "hourly_productivity_specification; annual-wage/per-employed-person matched specification remains pending official API extraction",
+  "common_coverage": "1995-2025",
+  "csv_sha256": "d52ed713593550b8625fc0e291d006f25b3efd71398f10860cf13d68c4d2646a",
+  "retrieved_on": "2026-08-22",
+  "series": {
+    "productivity": {
+      "dataset": "OECD.SDD.TPS,DSD_PDB@DF_PDB,2.0",
+      "definition": "GDP per hour worked, US dollars per hour PPP converted, chain linked volume (rebased), 2020",
+      "url": "https://data-explorer.oecd.org/vis?df%5Bag%5D=OECD.SDD.TPS&df%5Bds%5D=dsDisseminateFinalDMZ&df%5Bid%5D=DSD_PDB%40DF_PDB&df%5Bvs%5D=2.0&dq=BEL%2BAUT%2BDEU%2BNLD%2BPRT%2BSWE%2BCHE%2BGBR%2BITA%2BFRA%2BESP%2BUSA.A.GDPHRS._T.USD_PPP_H.LR.N..&fc=Topic&fs%5B0%5D=Topic%2C0%7CEconomy%23ECO%23&fs%5B1%5D=Topic%2C1%7CEconomy%23ECO%23%7CProductivity%23ECO_PRO%23&pd=1995%2C2025&pg=0&snb=4&to%5BTIME_PERIOD%5D=false&vw=tb",
+      "web_ref": "turn401777search0"
+    },
+    "real_wage": {
+      "dataset": "OECD.ELS.SAE,DSD_EARNINGS@AV_AN_WAGE,1.0",
+      "definition": "Average annual wages, constant prices, US dollars PPP converted, 2025",
+      "url": "https://data-explorer.oecd.org/vis?df%5Bag%5D=OECD.ELS.SAE&df%5Bds%5D=dsDisseminateFinalDMZ&df%5Bid%5D=DSD_EARNINGS%40AV_AN_WAGE&df%5Bvs%5D=1.0&dq=..USD_PPP....&ly%5Bcl%5D=TIME_PERIOD&ly%5Brw%5D=REF_AREA&pd=1994%2C&pg=0&snb=26&tm=average+annual+wage&to%5BTIME_PERIOD%5D=false&vw=tb",
+      "web_ref": "turn521414search3"
+    }
+  },
+  "source_access_mode": "official OECD Data Explorer snapshot; no direct Python HTTP access in execution environment",
+  "status": "frozen_reference_snapshot",
+  "warning": "Values were transcribed from current OECD Data Explorer pages surfaced during this research session. This file is an auditable empirical reference for the network-isolated execution environment; it is not a raw SDMX payload. In a network-enabled environment, regenerate data/raw snapshots with the CLI."
+}

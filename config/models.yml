@@ -1,0 +1,35 @@
+distributed_lag:
+  x_lags: 2
+  y_lags: 1
+  hac_lags: 2
+
+ecm:
+  max_wage_growth_lags: 2
+  max_productivity_growth_lags: 2
+  hac_lags: 2
+
+structural_breaks:
+  max_breaks: 3
+  min_segment: 8
+
+state_space:
+  initial_state_variance: 100.0
+
+local_projections:
+  horizon: 8
+  control_lags: 2
+  hac_lags: 2
+
+asymmetry:
+  lags: 2
+  hac_lags: 2
+
+vecm:
+  k_ar_diff: 1
+  irf_periods: 8
+
+reliability:
+  min_asymmetry_shocks_per_sign: 8
+  min_local_projection_nobs: 25
+  min_break_segment_for_interpretation: 10
+  state_space_z_threshold: 1.96

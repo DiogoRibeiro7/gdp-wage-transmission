@@ -1,0 +1,58 @@
+oecd:
+  average_wages:
+    flow_ref: "OECD.ELS.SAE,DSD_EARNINGS@AV_AN_WAGE,1.0"
+    key_template: "{countries}..USD_PPP..Q.."
+    format: csvfilewithlabels
+    documentation: "https://data-explorer.oecd.org/"
+  productivity_per_hour:
+    flow_ref: "OECD.SDD.TPS,DSD_PDB@DF_PDB,2.0"
+    measure: GDPHRS
+    key_template: "{countries}.A.GDPHRS._T.USD_PPP_H.LR.N.."
+    format: csvfilewithlabels
+    documentation: "https://data-explorer.oecd.org/"
+  productivity_per_worker:
+    flow_ref: "OECD.SDD.TPS,DSD_PDB@DF_PDB,2.0"
+    measure: GDPEMP
+    key_template: "{countries}.A.GDPEMP._T.USD_PPP_PS.LR.N.."
+    format: csvfilewithlabels
+    documentation: "https://data-explorer.oecd.org/"
+
+eurostat:
+  time_filter:
+    since: sinceTimePeriod
+    until: untilTimePeriod
+  api_base: "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data"
+  real_gdp:
+    dataset: nama_10_gdp
+    filters:
+      freq: A
+      unit: CLV20_MEUR
+      na_item: B1GQ
+  nominal_gdp:
+    dataset: nama_10_gdp
+    filters:
+      freq: A
+      unit: CP_MEUR
+      na_item: B1GQ
+  employee_compensation:
+    dataset: nama_10_gdp
+    filters:
+      freq: A
+      unit: CP_MEUR
+      na_item: D1
+  employees:
+    dataset: nama_10_pe
+    filters:
+      freq: A
+      unit: THS_PER
+      na_item: SAL_DC
+    note: "Employees, domestic concept; do not substitute total employment EMP_DC."
+  consumer_price_index:
+    dataset: prc_hicp_aind
+    filters:
+      freq: A
+      unit: INX_A_AVG
+      coicop: CP00
+    note: "All-items HICP annual-average index; base cancels in log differences."
+  labour_productivity_and_ulc:
+    dataset: nama_10_lp_ulc

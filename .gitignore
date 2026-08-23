@@ -1,0 +1,32 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+.env
+.DS_Store
+.ipynb_checkpoints/
+
+# Raw official extracts are reproducible downloads and may be large.
+data/raw/*
+!data/raw/.gitkeep
+data/interim/*
+!data/interim/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+
+# Generated analysis products stay outside version control.
+results/*
+!results/figures/
+!results/tables/
+results/figures/*
+!results/figures/.gitkeep
+results/tables/*
+!results/tables/.gitkeep
+
+# Paper-facing empirical fragments are generated from a verified publication dossier.
+paper/generated/*
+!paper/generated/.gitkeep

@@ -1,0 +1,35 @@
+primary_country: PRT
+countries:
+  - PRT
+  - ESP
+  - FRA
+  - DEU
+  - ITA
+  - NLD
+  - BEL
+  - AUT
+  - SWE
+  - DNK
+  - FIN
+  - GBR
+  - USA
+# Eurostat accounting/HICP coverage is a European robustness layer; the OECD time-series panel
+# remains broader. Keep this list explicit rather than silently dropping unsupported countries.
+decomposition_countries:
+  - PRT
+  - ESP
+  - FRA
+  - DEU
+  - ITA
+  - NLD
+  - BEL
+  - AUT
+  - SWE
+  - DNK
+  - FIN
+  - GBR
+start_year: 1995
+end_year: 2025
+primary_wage_measure: average_real_wage
+primary_productivity_measure: gdp_per_hour
+matched_annual_productivity_measure: gdp_per_person_employed

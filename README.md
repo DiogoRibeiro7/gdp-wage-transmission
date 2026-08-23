@@ -1,0 +1,480 @@
+# GDP–Wage Transmission
+
+A reproducible empirical research repository for studying how economic growth and labour productivity transmit into real wages, how quickly that transmission occurs, and whether the relationship changes over time.
+
+The primary country is **Portugal**. The code is designed from the beginning to support cross-country robustness analysis.
+
+## Research question
+
+The project does **not** assume that GDP growth mechanically implies wage growth. The central empirical object is the wage-transmission elasticity
+
+\[
+\beta_t = \frac{\partial \log(w_t)}{\partial \log(p_t)},
+\]
+
+where \(w_t\) is a real wage or compensation measure and \(p_t\) is real labour productivity or real output per worker/hour.
+
+The repository asks:
+
+1. How much of productivity growth is transmitted to real wages?
+2. How long does the transmission take?
+3. Is there a stable long-run relationship between wages and productivity?
+4. Did the transmission coefficient change structurally over time?
+5. Do wages respond asymmetrically to expansions and contractions?
+6. Is the result different for mean and median wages?
+7. How much of wage growth can be decomposed into real GDP growth, labour-share changes, employment growth, and relative-price effects?
+
+
+## Two-paper structure
+
+The repository now supports two related papers while sharing one data, provenance and validation
+layer:
+
+- **Paper 1 — GDP/productivity and wage transmission.** The original manuscript remains under
+  [`paper/`](paper/). Its v0.6 pre-results specification lock and `src/wage_transmission` analysis
+  hash are unchanged.
+- **Paper 2 — Wage-distribution compression and structural breaks.** The second manuscript lives
+  under [`papers/wage_distribution_breaks/`](papers/wage_distribution_breaks/). It reuses the
+  existing 2002–2024 Quadros de Pessoal wage-distribution panel and tests endogenous break dates
+  separately from historically specified 2008/2009 breaks.
+
+Paper 2 is explicitly **post-hoc/exploratory**, not preregistered, because the distribution series
+were inspected before its protocol was frozen. Its analysis lock prevents further specification
+drift from this point onward without pretending the earlier inspection did not occur.
+
+Current Paper 2 exploratory results select approximately **2006** for D10/D1 and D9/D1,
+**2013** for D10/D5, and **2014** for mean/median. The forced 2008 and 2009 models still show
+negative post-break slopes, so the GFC remains a historically meaningful candidate rather than the
+unique data-selected break.
+
+## Model stack
+
+The implementation deliberately progresses from accounting identities to increasingly flexible time-series models:
+
+1. accounting decomposition;
+2. stationarity and cointegration diagnostics;
+3. distributed-lag growth regressions;
+4. Engle–Granger error-correction model (ECM);
+5. endogenous least-squares structural-break search;
+6. state-space time-varying transmission elasticity;
+7. local projections;
+8. asymmetric transmission regression;
+9. optional VECM impulse responses;
+10. cross-country robustness.
+
+The state-space and break models do **not** hard-code historical break dates. Historical events are used only after estimation to interpret estimated regimes.
+
+## Data sources
+
+Primary harmonised sources:
+
+- **OECD Average annual wages** (`OECD.ELS.SAE,DSD_EARNINGS@AV_AN_WAGE,1.0`)
+- **OECD Productivity database** (`OECD.SDD.TPS,DSD_PDB@DF_PDB,2.0`), including GDP per hour worked
+
+Secondary accounting source:
+
+- **Eurostat** `nama_10_gdp` — GDP and compensation of employees
+- **Eurostat** `nama_10_pe` — employees in the domestic concept
+- **Eurostat** `prc_hicp_aind` — annual HICP indices
+- **Eurostat** `nama_10_lp_ulc` — independent productivity robustness concepts
+
+The download layer stores source extracts unchanged under `data/raw/` before canonicalisation. Raw snapshots retain the source unit, price-base, status fields, query URL and SHA-256 digest; the canonical panel is deliberately narrower. v0.4 also supports explicit source-vintage subdirectories, byte-preserving external imports, an auditable raw-snapshot registry, and complete offline reconstruction from frozen responses.
+
+## Repository layout
+
+```text
+.
+├── config/
+│   ├── data_sources.yml
+│   ├── models.yml
+│   ├── project.yml
+│   └── publication.yml
+├── data/
+│   ├── raw/
+│   ├── interim/
+│   ├── processed/
+│   ├── reference/
+│   └── sample/
+├── docs/
+├── notebooks/
+├── paper/                         # Paper 1 (locked GDP–wage transmission)
+├── papers/
+│   └── wage_distribution_breaks/  # Paper 2
+├── prompts/
+├── results/
+│   ├── figures/
+│   └── tables/
+├── src/wage_transmission/
+│   ├── data/
+│   ├── diagnostics/
+│   └── models/
+└── tests/
+```
+
+## Frozen Portugal reference audit
+
+The repository now contains a frozen Portugal reference run for 1995–2025 using current OECD average annual real wages and GDP per hour worked. The reference dataset is stored under `data/reference/` with provenance and SHA-256 metadata. Because the execution environment could inspect OECD Data Explorer but could not make Python HTTP requests, this is a **reference transcription**, not the raw SDMX archive required for a publication release.
+
+The first diagnostic run finds:
+
+- full-period real wage growth: **+31.36%**;
+- full-period GDP/hour growth: **+34.57%**;
+- annual log-growth correlation: **0.087**;
+- no Engle–Granger cointegration evidence at 5% (`p = 0.407`);
+- exploratory break candidates at 2004 and 2013, but with segments too short for strong regime inference;
+- latest state-space elasticity about `0.196` with standard error `0.424`, hence not distinguishable from zero;
+- only five negative productivity changes, so the asymmetry specification is flagged as underpowered;
+- local-projection horizons 4–8 are labelled exploratory because their effective sample falls below 25 observations.
+
+See [`docs/portugal_empirical_audit.md`](docs/portugal_empirical_audit.md) for the interpretation audit. These are reduced-form diagnostics, not causal estimates.
+
+### Matched annual specification
+
+The frozen reference run pairs annual wages with GDP per hour, which is useful but not denominator-matched. The OECD data layer now also supports **GDP per person employed (`GDPEMP`)** as `productivity_per_worker`:
+
+```bash
+poetry run wage-transmission download-oecd-matched
+
+poetry run wage-transmission analyse \
+  --input data/processed/panel_per_worker.csv \
+  --country PRT \
+  --driver productivity_per_worker \
+  --output results/portugal-per-worker
+```
+
+That matched series must be fetched from the official API for publication use; the repository does not fabricate a raw snapshot when network access is unavailable.
+
+### Exploratory live-data check
+
+A reporting-side exploratory run now uses values visible in current OECD Data Explorer indexed output for the common 1995–2023 Portugal sample, while leaving the v0.6 analysis lock unchanged. It is stored under `results/exploratory_live/` and is explicitly marked `publication_eligible: false`.
+
+Under the locked primary distributed-lag specification, the cumulative coefficient is about `0.222` for GDP per person employed (HAC SE `0.543`, p = `0.684`) and about `-0.698` for GDP per hour (HAC SE `0.780`, p = `0.371`). Neither specification supports cointegration at 5%. The point of this exercise is therefore methodological: using the matched denominator does not, by itself, create evidence of a strong wage-transmission relationship. See [`docs/live_data_exploratory_audit.md`](docs/live_data_exploratory_audit.md).
+
+### Exploratory endpoint decomposition
+
+The same exploratory area now contains a 1996–2025 two-endpoint accounting decomposition. The
+publication-specification denominator is Eurostat national-accounts employees under the domestic
+concept (`SAL_DC`). Because the indexed-web route does not expose the 1996 Portugal `SAL_DC` level
+with sufficient provenance, the locked decomposition deliberately leaves the employment term and
+full total unresolved.
+
+The employee-independent terms are `+40.86` log points from real GDP, `+1.43` from the raw D.1/GDP
+labour share and `+14.66` from the GDP-deflator/HICP price wedge. The raw compensation share rises
+from `47.44%` to `48.12%`. A separately labelled LFS-employee sensitivity adds `-34.09` log points
+from employee growth and closes at `+22.86` log points, or about `+25.68%` in levels. The LFS
+denominator is a national/resident concept and is **not** a substitute for `SAL_DC`; the complete
+exercise remains `publication_eligible: false`. See
+[`docs/live_data_decomposition_audit.md`](docs/live_data_decomposition_audit.md).
+
+### Exploratory annual decomposition
+
+The endpoint exercise is now expanded to a full **1996–2025 annual accounting path** without
+changing any locked estimator or configuration. Nominal GDP, D.1 compensation, the GDP deflator
+and LFS employees use the same exploratory INE/PORDATA series; annual HICP is constructed from a
+frozen 360-row Eurostat/FRED monthly table, with exactly twelve monthly observations averaged for
+each calendar year.
+
+The employee-independent locked terms are complete for all 29 annual changes. The exact Eurostat
+`SAL_DC` vector is still unavailable through the indexed-web surface, so the locked employment term
+and locked annual total remain missing by construction. A complete LFS-employee identity is retained
+only as a concept-mismatched sensitivity and is marked `publication_eligible: false`.
+
+The annual path shows why the almost unchanged endpoint D.1/GDP share should not be interpreted as
+a constant allocation mechanism. In the LFS sensitivity, 2011 and 2012 have totals of about
+`-0.0581` and `-0.0591` log points. In 2020 real GDP contributes `-0.0856`, while the raw labour
+share contributes `+0.0641`, lower LFS employment `+0.0224`, and the relative-price wedge `+0.0220`,
+leaving a small positive total. In 2022 the corresponding terms are `+0.0675`, `-0.0288`, `-0.0375`
+and `-0.0260`, producing a negative total. These are descriptive accounting contributions, not
+causal estimates. See
+[`docs/live_data_annual_decomposition_audit.md`](docs/live_data_annual_decomposition_audit.md).
+
+### Exploratory wage distribution
+
+The exploratory layer now adds a coherent **2002–2024 mean/median/decile panel** from GEP/MTSSS
+`Quadros de Pessoal`. The population is deliberately narrow and consistent: mainland-Portugal
+full-time employees with complete remuneration in October. The historical 2002–2014 and latest
+2014–2024 official chronological tables are stored separately and must agree exactly at their
+duplicated 2014 bridge year before the panel is built.
+
+Because the wage observation is for October, nominal gain is deflated with **October HICP** rather
+than annual-average HICP. Over 2002–2024, exploratory real monthly gain grows about `25.0%` at the
+mean, `30.9%` at the median, `55.2%` in the bottom decile and `13.4%` in the top decile. The ratio
+of average D10 to average D1 gain compresses from `6.83` to `4.99`, while mean/median falls from
+`1.392` to `1.329`. Thus the covered post-2002 employee distribution does not show the typical
+worker falling progressively behind the mean; it shows substantial compression, particularly from
+2008 onward. On the common 2002–2023 endpoint with the exploratory OECD GDP/person-employed series,
+productivity grows `19.12%` and real mean gain `18.89%`, but the median grows `24.09%`, D1 `47.12%`
+and D10 only `8.41%`. Aggregate co-movement therefore hides very different distributional incidence.
+
+These are employee-pay distribution facts, not household-income inequality and not causal evidence
+about minimum-wage policy or productivity. The complete layer remains `publication_eligible: false`.
+See [`docs/live_data_wage_distribution_audit.md`](docs/live_data_wage_distribution_audit.md).
+
+## Installation
+
+The project uses Poetry.
+
+```bash
+poetry install
+```
+
+Run the quality checks:
+
+```bash
+poetry run pytest
+poetry run ruff check .
+poetry run mypy src
+```
+
+## Quick start without network access
+
+A deterministic synthetic dataset is included only to exercise the pipeline. It is **not empirical evidence**.
+
+```bash
+poetry run wage-transmission analyse \
+  --input data/sample/synthetic_portugal.csv \
+  --country PRT \
+  --output results/demo
+```
+
+## Pre-results publication lock
+
+v0.6 fixes the publication hierarchy **before a live source-freeze result is promoted**. The lock
+binds `project.yml`, `models.yml`, `publication.yml`, the package version and the complete Python
+analysis source tree:
+
+```bash
+poetry run wage-transmission lock-publication-spec \
+  --label pre-source-freeze-2026-08-22 \
+  --output paper/specification_lock.json
+```
+
+The primary Portugal driver is `productivity_per_worker` (GDP per person employed), because it is
+denominator-matched to annual wages. GDP per hour remains the secondary productivity definition.
+The **cumulative distributed-lag transmission coefficient** is the primary inferential estimand.
+ECM, state-space, break, local-projection and asymmetry results remain supporting models and can only
+become publication-facing claims when their pre-specified reliability gates pass.
+
+After one source vintage is rebuilt and analysed, the publication dossier is generated mechanically:
+
+```bash
+poetry run wage-transmission build-publication-dossier \
+  --results-root results/vintages/2026-08-22 \
+  --specification-lock paper/specification_lock.json \
+  --output results/vintages/2026-08-22/publication_dossier
+```
+
+It writes `core_estimates.csv`, `reliability_gates.csv`, `cross_country_summary.csv`, the Portugal
+decomposition summary when available, a concise `results_summary.md`, and a checksummed
+`publication_manifest.json`. The manifest explicitly records `causal_claims_authorized: false`.
+See [`docs/specification_lock.md`](docs/specification_lock.md).
+
+The paper-facing layer is deliberately separate from the locked analysis package. Once the dossier
+exists, generate and audit the empirical LaTeX/Markdown fragments with:
+
+```bash
+poetry run python tools/publication_report.py build \
+  --dossier results/vintages/2026-08-22/publication_dossier \
+  --paper-dir paper
+
+poetry run python tools/publication_report.py audit \
+  --paper-dir paper \
+  --manifest paper/generated/paper_packet_manifest.json
+```
+
+The formatter verifies the dossier hashes, labels reliability-gated models explicitly as `eligible`
+or `not eligible`, hashes every generated fragment, and rejects hand-written LaTeX table environments
+outside `paper/generated/`. This is a reporting-only layer: it does not estimate models and does not
+change the v0.6 analysis-source hash. See [`docs/paper_generation.md`](docs/paper_generation.md).
+
+## Publication source freeze
+
+Before downloading a publication vintage, export the exact request plan:
+
+```bash
+poetry run wage-transmission export-source-queries \
+  --vintage 2026-08-22 \
+  --output data/query_manifests/2026-08-22.json
+```
+
+The current project configuration produces **63 official requests**: three OECD queries and five Eurostat decomposition queries for each of twelve European countries. The release includes this manifest plus `data/query_manifests/2026-08-22.audit.csv`. The audit currently says `missing` for every request because this execution container has no outbound DNS; that is deliberate and prevents a reference transcription from being promoted to a raw API freeze.
+
+### Internet-enabled publication freeze
+
+v0.5 added a network-safe fetch command and `.github/workflows/source-freeze.yml`. On an internet-enabled machine, the exact manifest can now be fetched directly without switching back to the older ad-hoc download path:
+
+```bash
+poetry run wage-transmission fetch-source-freeze \
+  --query-manifest data/query_manifests/2026-08-22.json \
+  --output data/query_manifests/2026-08-22.fetch.csv \
+  --audit-output data/query_manifests/2026-08-22.audit.csv \
+  --registry data/raw/SNAPSHOT_REGISTRY.csv \
+  --strict
+```
+
+The fetcher stores the exact response bytes, retries only transient transport/HTTP failures, rejects obvious HTML/error payloads before storage, and reuses already verified snapshots without a second request. The audit also checks manifest metadata (URL, query id, dataset/flow/measure when present), so a self-consistent hash is not enough if the file belongs to a different source request.
+
+The GitHub Actions workflow performs the complete publication path on an internet-enabled runner: specification-lock verification → query manifest → immutable raw freeze → strict audit → offline panel reconstruction → Portugal/cross-country analyses → locked publication dossier → paper-packet generation/audit → Ruff/mypy/pytest → checksummed Actions artifact. See [`docs/github_source_freeze.md`](docs/github_source_freeze.md).
+
+On a network-enabled machine, downloads should use an explicit vintage directory:
+
+```bash
+poetry run wage-transmission download-oecd-matched --vintage 2026-08-22
+poetry run wage-transmission download-decomposition --vintage 2026-08-22
+```
+
+If a response was downloaded externally, import its bytes directly from the query manifest:
+
+```bash
+poetry run wage-transmission import-query-snapshot \
+  --input ~/Downloads/oecd-response.csv \
+  --query-manifest data/query_manifests/2026-08-22.json \
+  --query-id oecd_gdpemp
+```
+
+Then enforce the release gate:
+
+```bash
+poetry run wage-transmission audit-source-freeze \
+  --query-manifest data/query_manifests/2026-08-22.json \
+  --output data/query_manifests/2026-08-22.audit.csv \
+  --strict
+
+poetry run wage-transmission audit-snapshots \
+  --raw-dir data/raw \
+  --output data/raw/SNAPSHOT_REGISTRY.csv
+```
+
+See [`docs/source_vintages.md`](docs/source_vintages.md) for the full freeze/revision protocol.
+
+## Download official data
+
+```bash
+poetry run wage-transmission download-data --vintage 2026-08-22
+```
+
+The OECD client uses the current SDMX REST API and requests `csvfilewithlabels`; Eurostat uses the Statistics API. OECD wage queries pin the constant-price code `Q`. Eurostat requests pin the requested year range with `sinceTimePeriod` and `untilTimePeriod`. Exact raw responses are persisted before canonicalisation.
+
+## Core analysis
+
+For a processed panel with columns
+
+```text
+country, year, real_wage, productivity
+```
+
+run:
+
+```bash
+poetry run wage-transmission analyse \
+  --input data/processed/panel.csv \
+  --country PRT \
+  --driver productivity \
+  --output results/portugal-productivity
+
+# Aggregate-GDP robustness run, when `real_gdp` is available:
+poetry run wage-transmission analyse \
+  --input data/processed/panel.csv \
+  --country PRT \
+  --driver real_gdp \
+  --output results/portugal-gdp
+
+# Country-specific robustness estimates, without pooled-homogeneity assumptions:
+poetry run wage-transmission analyse-panel \
+  --input data/processed/panel.csv \
+  --driver productivity \
+  --output results/cross_country/country_estimates.csv
+```
+
+`analyse-panel` writes the country table first and then a secondary `country_estimates.summary.json` containing the median transmission, inverse-variance fixed/random-effects summaries, Cochran's Q and I-squared. The summary is explicitly a robustness aggregation, not a substitute for the country estimates.
+
+## National-accounts decomposition
+
+The Eurostat layer now implements the exact accounting identity
+
+\[
+\Delta\log w^{D1}
+=\Delta\log Y+\Delta\log s_L-\Delta\log N+(\pi_Y-\pi_C).
+\]
+
+Download the five aligned inputs and a source-by-source coverage audit:
+
+```bash
+poetry run wage-transmission download-decomposition
+```
+
+This writes both `data/processed/decomposition_inputs.csv` and
+`data/processed/decomposition_coverage.csv`. The coverage table is produced **before** the common-sample
+inner join, so a missing source-year cannot disappear silently from the analysis panel.
+
+Then run Portugal or the full European decomposition panel:
+
+```bash
+poetry run wage-transmission decompose \
+  --input data/processed/decomposition_inputs.csv \
+  --country PRT \
+  --output results/decomposition/PRT
+
+poetry run wage-transmission decompose \
+  --input data/processed/decomposition_inputs.csv \
+  --output results/decomposition/all
+```
+
+The inputs are current-price GDP (`B1GQ`), chain-linked real GDP, compensation of employees (`D1`), employees in the domestic concept (`SAL_DC`) and the all-items HICP annual-average index. `SAL_DC` is intentional: total employment would add self-employed persons to the denominator. The decomposition's wage concept is **real compensation per employee**, not the OECD average annual wage, so the two empirical layers remain separate.
+
+Each one-country decomposition also writes annual and cumulative contribution figures. The notebook `04_labour_share_decomposition.ipynb` consumes the processed panel and package functions rather than reimplementing the identity.
+
+The analysis commands write model summaries, machine-readable reliability flags, figures, and run manifests containing package/version information plus input hashes. The notebooks consume those outputs rather than duplicating modelling logic.
+
+## Rebuild from frozen responses without network access
+
+The processed empirical panels can be regenerated from verified raw bytes only:
+
+```bash
+poetry run wage-transmission build-oecd-from-snapshots \
+  --wage-snapshot data/raw/2026-08-22/oecd_average_wages_1995_2025.csv \
+  --productivity-snapshot data/raw/2026-08-22/oecd_gdpemp_1995_2025.csv \
+  --measure GDPEMP \
+  --output data/processed/2026-08-22/panel_per_worker.csv
+
+poetry run wage-transmission build-decomposition-from-snapshots \
+  --raw-dir data/raw/2026-08-22 \
+  --output data/processed/2026-08-22/decomposition_inputs.csv
+```
+
+Metadata verification is mandatory by default. A development-only `--allow-unverified` escape hatch exists but must not be used for publication results.
+
+Official revisions are measurable rather than silently absorbed:
+
+```bash
+poetry run wage-transmission compare-vintages \
+  --old data/processed/2026-08-22/panel_per_worker.csv \
+  --new data/processed/2026-11-01/panel_per_worker.csv \
+  --values real_wage,productivity_per_worker \
+  --output results/revisions/2026-08-22_vs_2026-11-01.csv
+```
+
+The revision table labels each observation `unchanged`, `revised`, `added`, or `dropped` and writes per-series revision summaries.
+
+## Statistical principles
+
+- Levels are never regressed mechanically without checking integration/cointegration. Both levels and first differences receive ADF/KPSS diagnostics.
+- The ECM is estimated as a conditional specification, but its long-run coefficient is flagged as unsupported when the Engle–Granger diagnostic does not support cointegration at 5%.
+- Growth regressions use HAC covariance estimates.
+- Break dates are estimated, not selected to match a narrative.
+- Local projections are interpreted as dynamic associations unless a credible shock-identification strategy is supplied.
+- VECM/VAR impulse responses are not labelled causal without identification.
+- Mean-wage and median-wage analyses are kept separate.
+- Price bases and deflators are explicit in every processed series.
+- Revisions to official data are expected; raw snapshots and metadata make runs auditable.
+- Flexible specifications are accompanied by pre-specified interpretation gates for cointegration, shock balance, break-segment size, local-projection effective sample size, and state-space precision.
+
+## Status
+
+**v0.6** contains the complete core time-series stack, reliability guardrails, frozen Portugal reference audit, denominator-explicit OECD productivity drivers, exact Eurostat labour-share accounting decomposition, country-specific cross-country estimates with HAC uncertainty, and the source-vintage/revision layer.
+
+The publication hierarchy is now pre-registered inside the repository. The primary annual specification is GDP per person employed versus real annual wages, the cumulative distributed-lag coefficient is the primary inferential estimand, and flexible models are reliability-gated supporting evidence. `paper/specification_lock.json` binds these choices to the configuration files, package version and analysis source-tree hash before a live official source freeze is promoted.
+
+The configured `2026-08-22` manifest still contains **63 official source queries**. Its bundled audit deliberately reports all 63 as missing because this local environment cannot perform the network fetches; the GitHub Actions workflow is the reproducible internet-enabled path for producing the untouched raw vintage, processed panels, empirical outputs and locked publication dossier.
+
+Validation for the current exploratory reporting revision is **58/58 tests passing** under the source-tree test environment and `compileall` succeeds. The added annual-decomposition tests cover missing and complete `SAL_DC` paths, exact accounting closure, concept labelling and annual-input contracts; the earlier dossier/paper-integrity gates remain in the suite. Ruff and mypy remain configured but are not installed in this local runtime; the GitHub publication workflow runs both as release gates.
