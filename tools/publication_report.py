@@ -391,6 +391,164 @@ def _country_estimates_table(cross: pd.DataFrame, dossier_dir: Path) -> str | No
     )
 
 
+def _verified_model_results(core: pd.DataFrame, driver: str) -> dict[str, Any] | None:
+    """Load one driver's serialized model results, checking the digest the dossier recorded."""
+    matched = core.loc[core["driver"] == driver]
+    if matched.empty or "source_result_path" not in core.columns:
+        return None
+    row = matched.iloc[0]
+    path = Path(str(row["source_result_path"]))
+    if not path.is_file():
+        return None
+    recorded = str(row.get("source_result_sha256") or "")
+    if recorded and sha256_file(path) != recorded:
+        raise ValueError(
+            f"Model results at {path} do not match the digest recorded in the dossier; "
+            "a table built from them would not correspond to the verified run."
+        )
+    return _load_json_object(path)
+
+
+def _local_projection_table(core: pd.DataFrame) -> str | None:
+    """Render the local-projection responses horizon by horizon.
+
+    Local projections are the only supporting model that passes its reliability gate, so
+    reporting the gate verdict without the coefficients leaves the one interpretable supporting
+    result invisible. Both interval types are shown: the asymptotic HAC interval and the
+    block-bootstrap interval. The gap between them is the point, since overlapping windows leave
+    a small effective sample at long horizons and the HAC interval does not know that.
+    """
+    results = _verified_model_results(core, "productivity_per_worker")
+    if not results:
+        return None
+    points = results.get("local_projections") or []
+    bands = {int(b["horizon"]): b for b in (results.get("local_projection_bands") or [])}
+    if not points:
+        return None
+
+    supported: set[int] = set()
+    matched = core.loc[core["driver"] == "productivity_per_worker"]
+    if not matched.empty:
+        raw = str(matched.iloc[0].get("supported_local_projection_horizons") or "")
+        supported = {int(part) for part in raw.split(";") if part.strip().isdigit()}
+
+    rows: list[str] = []
+    for point in points:
+        horizon = int(point["horizon"])
+        band = bands.get(horizon)
+        bootstrap = (
+            f"[{_fmt_float(band['lower_95'])}, {_fmt_float(band['upper_95'])}]" if band else "--"
+        )
+        marker = "" if horizon in supported else r"$^{\dagger}$"
+        rows.append(
+            "{}{} & {} & {} & [{}, {}] & {} & {} \\\\".format(
+                horizon,
+                marker,
+                _fmt_float(point["estimate"]),
+                _fmt_float(point["std_error"]),
+                _fmt_float(point["lower_95"]),
+                _fmt_float(point["upper_95"]),
+                bootstrap,
+                int(point["nobs"]),
+            )
+        )
+
+    return _table_wrapper(
+        caption="Local-projection responses of real wages to productivity growth.",
+        label="tab:local-projections",
+        columns="lrrrrr",
+        header=r"Horizon & Estimate & HAC SE & HAC 95\% CI & Bootstrap 95\% CI & $n$",
+        rows=rows,
+        note=(
+            "Cumulative log-wage response at each horizon, primary driver. Horizons marked "
+            "$\\dagger$ fall below the pre-specified minimum effective sample and are "
+            "exploratory. The bootstrap interval is a circular moving-block percentile interval "
+            "that resamples the joint growth pairs; it is wider than the HAC interval at longer "
+            "horizons because overlapping windows leave few effective observations there. "
+            "These are dynamic associations, not impulse responses to an identified shock."
+        ),
+    )
+
+
+def _forest_plot(cross: pd.DataFrame, dossier_dir: Path, output: Path) -> Path | None:
+    """Plot every country estimate against the random-effects summary.
+
+    A thirteen-row table states the estimates; a forest plot shows whether they overlap, which
+    is the question the heterogeneity statistic answers numerically.
+    """
+    if "country_estimates_path" not in cross.columns:
+        return None
+    primary = cross.loc[cross["driver"] == "productivity_per_worker"]
+    if primary.empty:
+        return None
+    row = primary.iloc[0]
+    path = Path(str(row["country_estimates_path"]))
+    if not path.is_file():
+        path = dossier_dir / path.name
+    if not path.is_file():
+        return None
+
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    estimates = pd.read_csv(path).sort_values("distributed_lag_cumulative")
+    values = estimates["distributed_lag_cumulative"].to_numpy(dtype=float)
+    errors = estimates["distributed_lag_cumulative_se"].to_numpy(dtype=float)
+    labels = [str(value) for value in estimates["country"]]
+    positions = range(len(values))
+
+    summary = float(row["random_effect_estimate"])
+    summary_se = float(row["random_effect_std_error"])
+
+    figure, axes = plt.subplots(figsize=(6.4, 0.34 * len(values) + 1.6))
+    for index, (estimate, error, label) in enumerate(zip(values, errors, labels, strict=True)):
+        highlight = label == "PRT"
+        axes.plot(
+            [estimate - 1.96 * error, estimate + 1.96 * error],
+            [index, index],
+            color="#b03030" if highlight else "#444444",
+            linewidth=2.0 if highlight else 1.2,
+            solid_capstyle="butt",
+        )
+        axes.plot(
+            [estimate],
+            [index],
+            marker="s" if highlight else "o",
+            color="#b03030" if highlight else "#222222",
+            markersize=6 if highlight else 4.5,
+        )
+
+    axes.axvline(0.0, color="#888888", linewidth=0.9, linestyle=":")
+    axes.axvline(1.0, color="#888888", linewidth=0.9, linestyle="--")
+    axes.axvspan(
+        summary - 1.96 * summary_se, summary + 1.96 * summary_se, color="#3060a0", alpha=0.13
+    )
+    axes.axvline(summary, color="#3060a0", linewidth=1.4)
+
+    axes.set_yticks(list(positions))
+    axes.set_yticklabels(labels)
+    axes.set_ylim(-0.8, len(values) - 0.2)
+    axes.set_xlabel("Cumulative transmission of productivity growth into real wages")
+    axes.set_title("Country-specific estimates and random-effects summary", fontsize=10)
+    axes.text(
+        summary,
+        len(values) - 0.55,
+        f"  RE {summary:.3f}",
+        color="#3060a0",
+        fontsize=8,
+        va="center",
+    )
+    for spine in ("top", "right"):
+        axes.spines[spine].set_visible(False)
+    figure.tight_layout()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    figure.savefig(output, bbox_inches="tight")
+    plt.close(figure)
+    return output
+
+
 def _cross_country_table(cross: pd.DataFrame) -> str:
     required = {
         "driver",
@@ -600,9 +758,19 @@ def build_paper_packet(*, dossier_dir: Path, paper_dir: Path) -> PaperPacket:
     # Optional, like the decomposition table: a dossier need not record a path to the
     # country-level estimates. When it does, the table is written and bound into the
     # manifest; when it does not, main.tex falls through its IfFileExists guard.
+    optional_paths: list[Path] = []
     country_table = _country_estimates_table(cross, dossier_dir)
     if country_table is not None:
-        _write(generated / "table_country_estimates.tex", country_table)
+        optional_paths.append(_write(generated / "table_country_estimates.tex", country_table))
+
+    projection_table = _local_projection_table(core)
+    if projection_table is not None:
+        optional_paths.append(_write(generated / "table_local_projections.tex", projection_table))
+
+    forest = _forest_plot(cross, dossier_dir, generated / "figure_forest.pdf")
+    if forest is not None:
+        optional_paths.append(forest)
+
     markdown_summary = _write(
         generated / "results_summary.md", _markdown_summary(core, cross, reliability)
     )
@@ -624,6 +792,8 @@ def build_paper_packet(*, dossier_dir: Path, paper_dir: Path) -> PaperPacket:
     ]
     if decomposition_table is not None:
         generated_paths.append(decomposition_table)
+    # Every optional artefact is bound into the manifest too, so nothing published is unhashed.
+    generated_paths.extend(optional_paths)
 
     manifest_payload = {
         "schema_version": 1,
