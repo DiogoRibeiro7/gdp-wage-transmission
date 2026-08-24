@@ -392,6 +392,7 @@ def _country_estimates_table(cross: pd.DataFrame, dossier_dir: Path) -> str | No
 
     estimates = pd.read_csv(path)
     needed = {"country", "distributed_lag_cumulative", "distributed_lag_cumulative_se", "nobs"}
+    has_cointegration = "cointegration_p_value" in estimates.columns
     missing = needed.difference(estimates.columns)
     if missing:
         raise ValueError(f"Country estimates missing columns: {sorted(missing)}")
@@ -406,20 +407,34 @@ def _country_estimates_table(cross: pd.DataFrame, dossier_dir: Path) -> str | No
         if str(item["country"]) == "PRT":
             country = r"\textbf{PRT}"
         levels = int(item["nobs"])
-        rows.append(
-            f"{country} & {levels} & {levels - LOST_TO_LAGS} & {_fmt_float(estimate)} & {_fmt_float(error)} & [{_fmt_float(low)}, {_fmt_float(high)}] \\\\"
-        )
+        cells = [
+            country,
+            str(levels),
+            str(levels - LOST_TO_LAGS),
+            _fmt_float(estimate),
+            _fmt_float(error),
+            f"[{_fmt_float(low)}, {_fmt_float(high)}]",
+        ]
+        if has_cointegration:
+            cells.append(_fmt_float(item["cointegration_p_value"]))
+            cells.append("yes" if _bool_value(item.get("cointegration_5pct", False)) else "no")
+        rows.append(" & ".join(cells) + r" \\")
 
     return _table_wrapper(
         caption="Country-specific cumulative transmission, GDP per person employed.",
         label="tab:country-estimates",
-        columns="lrrrrr",
-        header=r"Country & Levels & Reg.\ $N$ & Cumulative & HAC SE & 95\% CI",
+        columns="lrrrrr" + ("rl" if has_cointegration else ""),
+        header=(
+            r"Country & Levels & Reg.\ $N$ & Cumulative & HAC SE & 95\% CI"
+            + (r" & EG $p$ & Coint.\ 5\%" if has_cointegration else "")
+        ),
         rows=rows,
         note=(
             "Each row is the same pre-specified specification estimated separately on one "
             r"country. Levels is the input series length; Reg.\ $N$ is the regression sample, "
-            "which loses one observation to differencing and two to the driver lags. "
+            r"which loses one observation to differencing and two to the driver lags. EG $p$ is "
+            r"the Engle--Granger cointegration p-value on log levels, and the final column "
+            r"reports whether it supports cointegration at 5\%. "
             "These estimates are the primary cross-country object; the summary in "
             "Table~\\ref{tab:cross-country} is secondary and should be read together with the "
             "heterogeneity statistic. Intervals are normal approximations from the HAC standard "
@@ -530,6 +545,9 @@ def _forest_plot(cross: pd.DataFrame, dossier_dir: Path, output: Path) -> Path |
     import matplotlib
 
     matplotlib.use("Agg")
+    # Type 3 fonts are rejected by some submission systems; 42 embeds TrueType.
+    matplotlib.rcParams["pdf.fonttype"] = 42
+    matplotlib.rcParams["ps.fonttype"] = 42
     import matplotlib.pyplot as plt
 
     estimates = pd.read_csv(path).sort_values("distributed_lag_cumulative")
@@ -810,7 +828,7 @@ def _source_table(config_path: Path) -> str | None:
         if not isinstance(spec, dict) or "dataset" not in spec:
             continue
         filters = spec.get("filters") or {}
-        detail = ", ".join(f"{key}={value}" for key, value in filters.items() if key != "freq")
+        detail = ", ".join(f"{key}={value}" for key, value in filters.items())
         rows.append(
             "Eurostat & {} & {} & {} \\\\".format(
                 _escape_latex(str(spec["dataset"])),
@@ -824,12 +842,15 @@ def _source_table(config_path: Path) -> str | None:
     return _table_wrapper(
         caption="Official source identifiers.",
         label="tab:sources",
-        columns="lp{4.3cm}p{2.8cm}p{4.4cm}",
+        columns="lp{3.9cm}p{3.4cm}p{3.9cm}",
         header="Provider & Dataset or dataflow & Selection & Use",
         rows=rows,
         note=(
             "Generated from the configuration the download layer uses, so the identifiers cannot "
-            "drift from what was retrieved. Each extract is stored unchanged with its query URL, "
+            "drift from what was retrieved. Every series is requested for the thirteen configured "
+            "countries over 1995--2025 at annual frequency; the country list and window are the "
+            "same for all sources and are therefore not repeated per row. Each extract is stored "
+            "unchanged with its query URL, "
             "retrieval timestamp and SHA-256 digest. A response carrying more than one unit or "
             "price base is rejected rather than aggregated."
         ),
