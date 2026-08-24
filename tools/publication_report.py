@@ -281,6 +281,9 @@ def _core_table(core: pd.DataFrame) -> str:
     )
 
 
+# The growth regression loses one observation to differencing and two to the driver lags.
+LOST_TO_LAGS = 3
+
 MODEL_LABELS = {
     "ecm_long_run": "Error-correction long run",
     "state_space_latest": "State-space latest slope",
@@ -401,26 +404,22 @@ def _country_estimates_table(cross: pd.DataFrame, dossier_dir: Path) -> str | No
         country = _escape_latex(str(item["country"]))
         if str(item["country"]) == "PRT":
             country = r"\textbf{PRT}"
+        levels = int(item["nobs"])
         rows.append(
-            "{} & {} & {} & {} & [{}, {}] \\\\".format(
-                country,
-                int(item["nobs"]),
-                _fmt_float(estimate),
-                _fmt_float(error),
-                _fmt_float(low),
-                _fmt_float(high),
-            )
+            f"{country} & {levels} & {levels - LOST_TO_LAGS} & {_fmt_float(estimate)} & {_fmt_float(error)} & [{_fmt_float(low)}, {_fmt_float(high)}] \\\\"
         )
 
     return _table_wrapper(
         caption="Country-specific cumulative transmission, GDP per person employed.",
         label="tab:country-estimates",
-        columns="lrrrr",
-        header=r"Country & $n$ & Cumulative & HAC SE & 95\% CI",
+        columns="lrrrrr",
+        header=r"Country & Levels & Reg.\ $N$ & Cumulative & HAC SE & 95\% CI",
         rows=rows,
         note=(
             "Each row is the same pre-specified specification estimated separately on one "
-            "country. These estimates are the primary cross-country object; the summary in "
+            r"country. Levels is the input series length; Reg.\ $N$ is the regression sample, "
+            "which loses one observation to differencing and two to the driver lags. "
+            "These estimates are the primary cross-country object; the summary in "
             "Table~\\ref{tab:cross-country} is secondary and should be read together with the "
             "heterogeneity statistic. Intervals are normal approximations from the HAC standard "
             "error. Country estimates over a common period are not independent, since countries "
@@ -765,6 +764,77 @@ def _decomposition_appendix(decomposition: pd.DataFrame, *, minimum_countries: i
     )
 
 
+SOURCE_PURPOSES = {
+    "average_wages": "Real annual wages, dependent employees (FTE)",
+    "productivity_per_hour": "Secondary driver: GDP per hour worked",
+    "productivity_per_worker": "Primary driver: GDP per person employed",
+    "real_gdp": "Decomposition: chain-linked real GDP",
+    "nominal_gdp": "Decomposition: nominal GDP",
+    "employee_compensation": "Decomposition: compensation of employees",
+    "employees": "Decomposition: employees, domestic concept",
+    "consumer_price_index": "Decomposition: all-items annual average HICP",
+    "labour_productivity_and_ulc": "Robustness: independent productivity concepts",
+}
+
+
+def _source_table(config_path: Path) -> str | None:
+    """Tabulate the dataflow identifiers, which clutter prose but belong on record.
+
+    Readers need the exact identifiers to reproduce a retrieval, and a sentence carrying an SDMX
+    dataflow reference is unreadable. The table is generated from the configuration the download
+    layer actually uses, so it cannot drift from what was retrieved.
+    """
+    if not config_path.is_file():
+        return None
+    import yaml
+
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    if not isinstance(config, dict):
+        return None
+
+    rows: list[str] = []
+    for name, spec in (config.get("oecd") or {}).items():
+        if not isinstance(spec, dict) or "flow_ref" not in spec:
+            continue
+        if str(spec.get("status", "")).lower() == "unverified":
+            continue
+        rows.append(
+            "OECD & {} & {} & {} \\\\".format(
+                _escape_latex(str(spec["flow_ref"])),
+                _escape_latex(str(spec.get("measure", "--"))),
+                _escape_latex(SOURCE_PURPOSES.get(name, name.replace("_", " "))),
+            )
+        )
+    for name, spec in (config.get("eurostat") or {}).items():
+        if not isinstance(spec, dict) or "dataset" not in spec:
+            continue
+        filters = spec.get("filters") or {}
+        detail = ", ".join(f"{key}={value}" for key, value in filters.items() if key != "freq")
+        rows.append(
+            "Eurostat & {} & {} & {} \\\\".format(
+                _escape_latex(str(spec["dataset"])),
+                _escape_latex(detail or "--"),
+                _escape_latex(SOURCE_PURPOSES.get(name, name.replace("_", " "))),
+            )
+        )
+    if not rows:
+        return None
+
+    return _table_wrapper(
+        caption="Official source identifiers.",
+        label="tab:sources",
+        columns="lp{4.3cm}p{2.8cm}p{4.4cm}",
+        header="Provider & Dataset or dataflow & Selection & Use",
+        rows=rows,
+        note=(
+            "Generated from the configuration the download layer uses, so the identifiers cannot "
+            "drift from what was retrieved. Each extract is stored unchanged with its query URL, "
+            "retrieval timestamp and SHA-256 digest. A response carrying more than one unit or "
+            "price base is rejected rather than aggregated."
+        ),
+    )
+
+
 def _primary_results_text(
     core: pd.DataFrame, cross: pd.DataFrame, reliability: pd.DataFrame
 ) -> str:
@@ -907,6 +977,10 @@ def build_paper_packet(*, dossier_dir: Path, paper_dir: Path) -> PaperPacket:
     forest = _forest_plot(cross, dossier_dir, generated / "figure_forest.pdf")
     if forest is not None:
         optional_paths.append(forest)
+
+    sources = _source_table(Path("config/data_sources.yml"))
+    if sources is not None:
+        optional_paths.append(_write(generated / "table_sources.tex", sources))
 
     markdown_summary = _write(
         generated / "results_summary.md", _markdown_summary(core, cross, reliability)
