@@ -28,6 +28,17 @@ vecm:
   k_ar_diff: 1
   irf_periods: 8
 
+inference:
+  # Resampling settings. These dominate runtime: every replication re-runs an estimator.
+  # A published run should leave `enabled` true; the asymptotic errors they replace are the
+  # optimistic ones in short annual samples.
+  enabled: true
+  break_trim: 0.15
+  break_bootstrap_replications: 499
+  band_replications: 199
+  block_length: 4
+  seed: 20260824
+
 reliability:
   min_asymmetry_shocks_per_sign: 8
   min_local_projection_nobs: 25

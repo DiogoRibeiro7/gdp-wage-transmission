@@ -12,10 +12,19 @@ from wage_transmission.diagnostics.cointegration import engle_granger
 from wage_transmission.diagnostics.stationarity import adf_test, kpss_test
 from wage_transmission.empirical_audit import assess_reliability, audit_country_frame
 from wage_transmission.models.asymmetry import fit_asymmetric_transmission
+from wage_transmission.models.break_inference import BreakTestResult, single_break_test
 from wage_transmission.models.distributed_lag import fit_distributed_lag
 from wage_transmission.models.ecm import select_ecm_lags
-from wage_transmission.models.local_projections import fit_local_projections
-from wage_transmission.models.state_space import fit_time_varying_elasticity
+from wage_transmission.models.local_projections import (
+    LocalProjectionBand,
+    bootstrap_local_projection_bands,
+    fit_local_projections,
+)
+from wage_transmission.models.state_space import (
+    TimeVaryingElasticityBand,
+    bootstrap_time_varying_elasticity_bands,
+    fit_time_varying_elasticity,
+)
 from wage_transmission.models.structural_breaks import fit_structural_breaks
 from wage_transmission.plots import (
     plot_levels,
@@ -102,6 +111,37 @@ def analyse_country(
         lags=cfg.asymmetry.lags,
         hac_lags=cfg.asymmetry.hac_lags,
     )
+
+    # Resampling-based inference. The BIC segmentation above answers "how many regimes fit
+    # best"; the test below answers "is there evidence of a break at all", which is a different
+    # question and is reported separately. The bands replace asymptotic standard errors that
+    # are known to be optimistic in short annual samples.
+    break_inference: BreakTestResult | None = None
+    projection_bands: tuple[LocalProjectionBand, ...] = ()
+    elasticity_bands: TimeVaryingElasticityBand | None = None
+    if cfg.inference.enabled:
+        break_inference = single_break_test(
+            data,
+            trim=cfg.inference.break_trim,
+            bootstrap_replications=cfg.inference.break_bootstrap_replications,
+            seed=cfg.inference.seed,
+        )
+        projection_bands = bootstrap_local_projection_bands(
+            data,
+            horizon=cfg.local_projections.horizon,
+            control_lags=cfg.local_projections.control_lags,
+            hac_lags=cfg.local_projections.hac_lags,
+            replications=cfg.inference.band_replications,
+            block_length=cfg.inference.block_length,
+            seed=cfg.inference.seed,
+        )
+        elasticity_bands = bootstrap_time_varying_elasticity_bands(
+            data,
+            initial_state_variance=cfg.state_space.initial_state_variance,
+            replications=cfg.inference.band_replications,
+            block_length=cfg.inference.block_length,
+            seed=cfg.inference.seed,
+        )
     audit = audit_country_frame(data)
     reliability = assess_reliability(
         audit=audit,
@@ -126,6 +166,9 @@ def analyse_country(
         "state_space": state_space,
         "local_projections": local_projections,
         "asymmetry": asymmetry,
+        "break_inference": break_inference,
+        "local_projection_bands": projection_bands,
+        "time_varying_elasticity_bands": elasticity_bands,
     }
     write_json(outputs, output_dir / "model_results.json")
     plot_levels(data, output_dir / "levels.png")

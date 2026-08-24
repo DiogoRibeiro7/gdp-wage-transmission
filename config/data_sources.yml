@@ -17,6 +17,22 @@ oecd:
     format: csvfilewithlabels
     documentation: "https://data-explorer.oecd.org/"
 
+  median_earnings:
+    # Median gross earnings. The dataflow identifier below MUST be confirmed against the OECD
+    # Data Explorer before a live source freeze: median-earnings flows differ by provider and
+    # vintage, and a wrong identifier returns a neighbouring concept rather than failing.
+    # `wage_transmission.data.median_wages` requires the flow to be passed explicitly for this
+    # reason, and refuses to assume a default.
+    flow_ref: "OECD.ELS.SAE,DSD_EARNINGS@DEC_I,1.0"
+    key_template: "{countries}..MEDIAN.."
+    format: csvfilewithlabels
+    status: unverified
+    coverage_note: >-
+      Harmonised median earnings are collected less often and for fewer countries than mean
+      annual wages. Attachment is gated on measured per-country coverage; countries below the
+      threshold are dropped and reported rather than carried with gaps.
+    documentation: "https://data-explorer.oecd.org/"
+
 eurostat:
   time_filter:
     since: sinceTimePeriod

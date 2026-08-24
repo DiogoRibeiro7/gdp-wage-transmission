@@ -71,3 +71,60 @@ The cross-country layer estimates the distributed-lag model separately for each 
 ## Accounting decomposition
 
 For compensation of employees \(D.1\), the denominator is the number of employees, not total employment. The implementation uses the domestic-concept employee count so that the remuneration concept and production boundary remain aligned. Positive and negative annual contributions are stacked separately in the diagnostic plot; the numerical identity is checked independently and must close to floating-point tolerance.
+
+## Formal break inference
+
+The BIC segmentation above answers *how many regimes fit best*. It does not answer *whether a
+break exists*, because the segmentation always returns a partition. `models/break_inference.py`
+addresses the second question separately.
+
+The statistic is the sup-F: the largest Chow F over candidate break dates, after trimming 15% of
+the sample from each end so that a segment is never estimated from a handful of observations. A
+break is allowed in both the intercept and the slope, since a shift in the transmission rate and
+a shift in the level of wage growth are different events.
+
+Two deliberate choices. The null distribution of a sup-statistic is non-standard and depends on
+the trimming fraction, so no tabulated critical values are used; the p-value is a wild-bootstrap
+tail probability under the no-break null, computed by re-running the entire date search on each
+replication. Because the search is inside the bootstrap, the p-value already accounts for having
+looked at every candidate date, and needs no further multiplicity correction. The Rademacher
+wild bootstrap is used rather than an i.i.d. residual bootstrap because annual growth residuals
+are heteroskedastic.
+
+The break-date interval is the percentile interval of the bootstrap arg-max under the estimated
+break model. It measures how stably the date is located, and a wide interval is reported as
+`break_detected_date_poorly_located` rather than being presented as a precise date. A located
+break says when the relationship changed; it never says why.
+
+## Bootstrap bands
+
+Local projections and the state-space elasticity both report asymptotic standard errors that are
+optimistic in short annual samples. Local-projection windows overlap, so the effective sample at
+long horizons is far smaller than the nominal one; the Kalman standard errors condition on the
+estimated variance parameters and ignore the uncertainty in estimating them, which matters
+because the state variance is what governs how much the elasticity may move.
+
+`models/_bootstrap.py` implements a circular moving-block bootstrap over the *joint* growth
+pairs, preserving both the contemporaneous wage-productivity relationship and short-run
+persistence within a block. Resampled growth is re-integrated to levels and passed back through
+the same validated entry points the point estimates use, so the bootstrap cannot drift from the
+estimator it describes.
+
+The bands are pointwise percentile intervals, not simultaneous ones. They do not license a claim
+about the path as a whole, such as a decline between two particular years.
+
+## Panel fixed effects
+
+`estimate_panel_fixed_effects` reports one pooled within-country elasticity with standard errors
+clustered by country. It is a robustness check and never a replacement for the country-specific
+estimates: pooling imposes homogeneous transmission dynamics, and where the country estimates are
+heterogeneous the pooled number is a weighted average of genuinely different processes rather
+than a common parameter.
+
+Cluster-robust inference is asymptotic in the *number of clusters*. With the country counts
+available here -- well below the conventional threshold of about 30 -- the clustered standard
+errors are downward-biased, and the result carries that caveat in its `interpretation` field so
+the warning travels with the number rather than living only in this document.
+
+Optional year effects absorb common annual shocks, at the cost of discarding the cross-country
+common component that a global productivity slowdown would show up in.

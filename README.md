@@ -79,13 +79,16 @@ The implementation deliberately progresses from accounting identities to increas
 3. distributed-lag growth regressions;
 4. Engle–Granger error-correction model (ECM);
 5. endogenous least-squares structural-break search;
-6. state-space time-varying transmission elasticity;
-7. local projections;
-8. asymmetric transmission regression;
-9. optional VECM impulse responses;
-10. cross-country robustness.
+6. formal single-break inference (sup-F with a wild-bootstrap p-value and a bootstrap
+   break-date interval), reported separately from the BIC segmentation above;
+7. state-space time-varying transmission elasticity, with block-bootstrap bands;
+8. local projections, with block-bootstrap bands;
+9. asymmetric transmission regression;
+10. optional VECM impulse responses;
+11. cross-country robustness, country by country, with a pooled fixed-effects estimate and
+    country-clustered standard errors offered only as a secondary check.
 
-The state-space and break models do **not** hard-code historical break dates. Historical events are used only after estimation to interpret estimated regimes.
+The state-space and break models do **not** hard-code historical break dates. Historical events are used only after estimation to interpret estimated regimes. The break test searches over candidate dates, and its bootstrap p-value already accounts for that search, so a rejection is not an artefact of looking everywhere.
 
 ## Data sources
 

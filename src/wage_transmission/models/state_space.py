@@ -8,6 +8,11 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 
+from wage_transmission.models._bootstrap import (
+    DEFAULT_BLOCK_LENGTH,
+    percentile_band,
+    resample_level_frame,
+)
 from wage_transmission.validation import add_log_growth_columns
 
 
@@ -116,4 +121,71 @@ def fit_time_varying_elasticity(
         state_variance=state_var,
         log_likelihood=llf,
         converged=bool(optimum.success),
+    )
+
+
+@dataclass(frozen=True)
+class TimeVaryingElasticityBand:
+    """Bootstrap band around the filtered elasticity path."""
+
+    year: np.ndarray
+    estimate: np.ndarray
+    lower_95: np.ndarray
+    upper_95: np.ndarray
+    replications: int
+    block_length: int
+    seed: int
+
+
+def bootstrap_time_varying_elasticity_bands(
+    frame: pd.DataFrame,
+    *,
+    initial_state_variance: float = 100.0,
+    replications: int = 199,
+    block_length: int = DEFAULT_BLOCK_LENGTH,
+    seed: int = 20260824,
+) -> TimeVaryingElasticityBand:
+    """Block-bootstrap percentile bands for the time-varying elasticity path.
+
+    The filtered standard errors from the Kalman recursion condition on the estimated variance
+    parameters and therefore ignore the uncertainty in estimating them. Re-estimating the whole
+    model on each block resample propagates that uncertainty into the band, which matters here
+    because the state variance is what governs how much the elasticity is allowed to move.
+
+    Bands are pointwise, not simultaneous: they do not license a statement about the path as a
+    whole, such as a claimed decline between two particular years.
+    """
+    if replications < 99:
+        raise ValueError("replications must be at least 99 for a usable percentile band")
+
+    point = fit_time_varying_elasticity(frame, initial_state_variance=initial_state_variance)
+    data = add_log_growth_columns(frame)
+    horizon = len(point.elasticity)
+    rng = np.random.default_rng(seed)
+
+    draws: list[np.ndarray] = []
+    for _ in range(replications):
+        resampled = resample_level_frame(data, block_length=block_length, rng=rng)
+        try:
+            fitted = fit_time_varying_elasticity(
+                resampled, initial_state_variance=initial_state_variance
+            )
+        except (ValueError, np.linalg.LinAlgError):
+            continue
+        if len(fitted.elasticity) == horizon:
+            draws.append(fitted.elasticity)
+
+    if not draws:
+        raise ValueError("Every bootstrap replication failed; the sample is too short.")
+
+    matrix = np.vstack(draws)
+    lower, upper = percentile_band(matrix)
+    return TimeVaryingElasticityBand(
+        year=point.year,
+        estimate=point.elasticity,
+        lower_95=lower,
+        upper_95=upper,
+        replications=len(draws),
+        block_length=int(block_length),
+        seed=int(seed),
     )

@@ -187,6 +187,133 @@ def summarise_country_robustness(
     )
 
 
+@dataclass(frozen=True)
+class PanelFixedEffectsResult:
+    """Pooled within-country transmission elasticity with country-clustered uncertainty."""
+
+    driver: str
+    n_countries: int
+    nobs: int
+    elasticity: float
+    std_error: float
+    t_statistic: float
+    lower_95: float
+    upper_95: float
+    within_r_squared: float
+    time_effects: bool
+    min_countries_for_clustering: int
+    interpretation: str
+
+
+def estimate_panel_fixed_effects(
+    panel: pd.DataFrame,
+    *,
+    driver_column: str = "productivity",
+    time_effects: bool = False,
+    min_observations_per_country: int = 12,
+) -> PanelFixedEffectsResult:
+    """Estimate one pooled growth elasticity with country fixed effects.
+
+    This is a **robustness check, not a replacement** for the country-specific estimates in
+    :func:`estimate_country_robustness`. A single pooled coefficient imposes cross-country
+    homogeneity of the transmission dynamics, which the primary research design does not assume;
+    where the country estimates are heterogeneous, this number is a weighted average of genuinely
+    different processes rather than a common parameter.
+
+    The within transformation removes country means, so the coefficient is identified from
+    within-country variation only. Standard errors are clustered by country, which is the level
+    at which the residuals are plausibly dependent. Cluster-robust inference is asymptotic in the
+    *number of clusters*: with fewer than roughly 30 countries the standard errors are
+    downward-biased, and the result records the count so that the caveat travels with the number.
+
+    Optional time effects absorb common annual shocks -- a global productivity slowdown, a
+    synchronised recession -- at the cost of discarding the cross-country common component.
+    """
+    if "country" not in panel.columns:
+        raise ValueError("Panel input must contain a `country` column.")
+    if driver_column not in panel.columns:
+        raise ValueError(f"Driver column not found: {driver_column}")
+
+    frames: list[pd.DataFrame] = []
+    for country, raw in panel.groupby("country", sort=True):
+        prepared = raw.copy()
+        prepared["productivity"] = pd.to_numeric(prepared[driver_column], errors="coerce")
+        try:
+            levels = validate_level_frame(prepared)
+        except ValueError:
+            continue
+        if len(levels) < min_observations_per_country:
+            continue
+        growth = add_log_growth_columns(levels).dropna(subset=["dlog_wage", "dlog_productivity"])
+        growth = growth.loc[:, ["year", "dlog_wage", "dlog_productivity"]].copy()
+        growth["country"] = str(country)
+        frames.append(growth)
+
+    if len(frames) < 2:
+        raise ValueError(
+            "A panel estimate needs at least two countries with sufficient observations."
+        )
+
+    data = pd.concat(frames, ignore_index=True)
+    n_countries = int(data["country"].nunique())
+
+    # Within transformation: demean by country, and optionally by year as well.
+    y = data["dlog_wage"].to_numpy(dtype=float)
+    x = data["dlog_productivity"].to_numpy(dtype=float)
+    y = y - data.groupby("country")["dlog_wage"].transform("mean").to_numpy(dtype=float)
+    x = x - data.groupby("country")["dlog_productivity"].transform("mean").to_numpy(dtype=float)
+    absorbed = n_countries
+    if time_effects:
+        year_group = data.groupby("year")
+        y = y - year_group["dlog_wage"].transform("mean").to_numpy(dtype=float) + float(y.mean())
+        x = (
+            x
+            - year_group["dlog_productivity"].transform("mean").to_numpy(dtype=float)
+            + float(x.mean())
+        )
+        absorbed += int(data["year"].nunique()) - 1
+
+    nobs = len(y)
+    denominator = float(x @ x)
+    if denominator <= 0.0:
+        raise ValueError("The demeaned driver has no within-country variation.")
+    beta = float(x @ y / denominator)
+    residuals = y - beta * x
+
+    # Cluster-robust variance: sum of squared within-cluster score contributions.
+    meat = 0.0
+    for _, index in data.groupby("country").indices.items():
+        meat += float(np.square(np.sum(x[index] * residuals[index])))
+    parameters = absorbed + 1
+    correction = (n_countries / max(n_countries - 1, 1)) * ((nobs - 1) / max(nobs - parameters, 1))
+    variance = correction * meat / (denominator**2)
+    std_error = float(np.sqrt(max(variance, 0.0)))
+    t_statistic = beta / std_error if std_error > 0.0 else float("nan")
+
+    total = float(y @ y)
+    within_r_squared = float(1.0 - (residuals @ residuals) / total) if total > 0.0 else 0.0
+
+    if n_countries < 30:
+        interpretation = "pooled_estimate_few_clusters_standard_errors_optimistic"
+    else:
+        interpretation = "pooled_estimate_robustness_only"
+
+    return PanelFixedEffectsResult(
+        driver=driver_column,
+        n_countries=n_countries,
+        nobs=nobs,
+        elasticity=beta,
+        std_error=std_error,
+        t_statistic=float(t_statistic),
+        lower_95=beta - 1.96 * std_error,
+        upper_95=beta + 1.96 * std_error,
+        within_r_squared=within_r_squared,
+        time_effects=bool(time_effects),
+        min_countries_for_clustering=30,
+        interpretation=interpretation,
+    )
+
+
 def write_country_robustness(frame: pd.DataFrame, output: Path) -> Path:
     """Persist country-level robustness estimates to CSV."""
     output.parent.mkdir(parents=True, exist_ok=True)

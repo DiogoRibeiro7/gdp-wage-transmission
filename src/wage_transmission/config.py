@@ -51,6 +51,22 @@ class VECMConfig(_StrictConfig):
     irf_periods: int = Field(default=8, ge=1)
 
 
+class InferenceConfig(_StrictConfig):
+    """Resampling settings for break inference and bootstrap bands.
+
+    These are the only settings in the stack whose cost is material: every replication re-runs an
+    estimator. `enabled` exists so a fast exploratory run can skip them, but a published run
+    should leave them on -- the asymptotic standard errors they replace are the optimistic ones.
+    """
+
+    enabled: bool = True
+    break_trim: float = Field(default=0.15, gt=0.0, lt=0.5)
+    break_bootstrap_replications: int = Field(default=499, ge=99)
+    band_replications: int = Field(default=199, ge=99)
+    block_length: int = Field(default=4, ge=1)
+    seed: int = Field(default=20260824, ge=0)
+
+
 class ReliabilityConfig(_StrictConfig):
     """Minimum sample conditions for interpreting flexible specifications."""
 
@@ -70,6 +86,7 @@ class ModelsConfig(_StrictConfig):
     local_projections: LocalProjectionConfig = LocalProjectionConfig()
     asymmetry: AsymmetryConfig = AsymmetryConfig()
     vecm: VECMConfig = VECMConfig()
+    inference: InferenceConfig = InferenceConfig()
     reliability: ReliabilityConfig = ReliabilityConfig()
 
 

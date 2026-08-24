@@ -16,3 +16,33 @@
 13. Browser/curl/other-machine downloads may be imported byte-for-byte, but are labelled `external_import`; they are never misrepresented as package-performed HTTP retrievals.
 14. Processed panels can be rebuilt offline from verified raw responses. An unverified-input override exists only for development and must not be used for publication evidence.
 15. Official-source revisions are compared explicitly across processed vintages and classified as unchanged, revised, added or dropped observations.
+
+## Release manifest
+
+`RELEASE_MANIFEST.sha256` proves that files did not change. It does not say what produced them,
+and two runs of identical code on different numpy versions can differ in the last decimal places
+of an estimate.
+
+`wage_transmission.release` builds the complementary record: package version, interpreter version
+and implementation, platform, the versions of the numerical libraries that actually do the
+arithmetic (numpy, pandas, scipy, statsmodels), the full content and digest of each configuration
+file, the digest and provenance of every raw source snapshot consumed, and the digest of each
+named output.
+
+The manifest carries no wall-clock timestamp. It is keyed by the source vintage instead, so
+building it twice from the same inputs produces identical bytes and any difference between two
+manifests is a real difference rather than the clock moving.
+
+```python
+from pathlib import Path
+from wage_transmission.release import build_release_manifest, write_release_manifest
+
+manifest = build_release_manifest(
+    vintage="2026-08-22",
+    raw_root=Path("data/raw"),
+    outputs={
+        "core_estimates": Path("results/vintages/2026-08-22/portugal_per_hour/model_results.json")
+    },
+)
+write_release_manifest(manifest, Path("results/vintages/2026-08-22/release_manifest.json"))
+```

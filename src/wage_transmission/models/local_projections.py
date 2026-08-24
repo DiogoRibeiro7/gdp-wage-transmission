@@ -4,8 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import numpy as np
 import pandas as pd
 
+from wage_transmission.models._bootstrap import (
+    DEFAULT_BLOCK_LENGTH,
+    percentile_band,
+    resample_level_frame,
+)
 from wage_transmission.models._regression import fit_ols_hac
 from wage_transmission.validation import add_log_growth_columns
 
@@ -59,3 +65,76 @@ def fit_local_projections(
             )
         )
     return tuple(output)
+
+
+@dataclass(frozen=True)
+class LocalProjectionBand:
+    """Bootstrap band around the local-projection response at one horizon."""
+
+    horizon: int
+    estimate: float
+    lower_95: float
+    upper_95: float
+    replications: int
+    block_length: int
+    seed: int
+
+
+def bootstrap_local_projection_bands(
+    frame: pd.DataFrame,
+    *,
+    horizon: int = 8,
+    control_lags: int = 2,
+    hac_lags: int = 2,
+    replications: int = 499,
+    block_length: int = DEFAULT_BLOCK_LENGTH,
+    seed: int = 20260824,
+) -> tuple[LocalProjectionBand, ...]:
+    """Block-bootstrap percentile bands for the local-projection responses.
+
+    The HAC standard errors returned by :func:`fit_local_projections` are asymptotic and are
+    known to be optimistic at longer horizons in short annual samples, where the overlapping
+    windows leave few effective observations. These bands resample the joint growth pairs in
+    blocks instead, so serial dependence is preserved and the horizon-specific uncertainty is
+    not understated.
+
+    Replications that fail to estimate -- a resample can leave too few complete observations at
+    the longest horizons -- are dropped, and the surviving count is reported per horizon.
+    """
+    if replications < 99:
+        raise ValueError("replications must be at least 99 for a usable percentile band")
+
+    point_estimates = fit_local_projections(
+        frame, horizon=horizon, control_lags=control_lags, hac_lags=hac_lags
+    )
+    data = add_log_growth_columns(frame)
+    rng = np.random.default_rng(seed)
+
+    draws: list[list[float]] = []
+    for _ in range(replications):
+        resampled = resample_level_frame(data, block_length=block_length, rng=rng)
+        try:
+            fitted = fit_local_projections(
+                resampled, horizon=horizon, control_lags=control_lags, hac_lags=hac_lags
+            )
+        except (ValueError, np.linalg.LinAlgError):
+            continue
+        draws.append([point.estimate for point in fitted])
+
+    if not draws:
+        raise ValueError("Every bootstrap replication failed; the sample is too short.")
+
+    matrix = np.asarray(draws, dtype=float)
+    lower, upper = percentile_band(matrix)
+    return tuple(
+        LocalProjectionBand(
+            horizon=point.horizon,
+            estimate=point.estimate,
+            lower_95=float(lower[index]),
+            upper_95=float(upper[index]),
+            replications=len(draws),
+            block_length=int(block_length),
+            seed=int(seed),
+        )
+        for index, point in enumerate(point_estimates)
+    )

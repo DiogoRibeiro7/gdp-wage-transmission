@@ -1,5 +1,58 @@
 # Changelog
 
+## Continuation milestones implemented — 2026-08-24
+
+Works through the milestone list in the repository's continuation prompt. Six of the eight
+milestones needed implementation; the GDP-per-worker robustness series and the
+serialized-output-only table generation were already in place.
+
+### Added
+
+- **Formal break inference** (`models/break_inference.py`), separate from the BIC segmentation.
+  A sup-F over trimmed candidate dates, a wild-bootstrap p-value under the no-break null that
+  re-runs the whole date search per replication, and a bootstrap break-date interval. No
+  tabulated critical values are used, and a poorly located date is reported as such.
+- **Block-bootstrap bands** (`models/_bootstrap.py`) for the time-varying elasticity and the
+  local projections. A circular moving-block resample over the joint growth pairs, re-integrated
+  to levels and passed back through the same validated entry points the point estimates use.
+  Bands are pointwise, not simultaneous.
+- **Panel fixed effects with country-clustered errors** (`estimate_panel_fixed_effects`). The
+  existing `fixed_effect_estimate` was a meta-analytic inverse-variance average, not a within
+  estimator; this is the panel estimator the milestone asked for. It carries its own caveat: with
+  fewer than about 30 clusters the standard errors are optimistic, and the result says so.
+- **Source-schema audit** (`data/schema_audit.py`) recording the unit, price base, observation
+  status, transformation and revision flag that canonicalisation discards. Mixed units or price
+  bases fail loudly; status and revision variation is recorded, since that is what makes a later
+  revision visible.
+- **Median-earnings support** (`data/median_wages.py`) with per-country coverage gating.
+  Countries below the coverage threshold are dropped and reported rather than carried with gaps.
+  The dataflow identifier is supplied from configuration and is marked `status: unverified`,
+  because a wrong median identifier returns a neighbouring concept rather than failing.
+- **Release manifest** (`release.py`) recording package, interpreter and numerical-library
+  versions, configuration content and digests, raw snapshot digests and output digests. Keyed by
+  source vintage rather than wall-clock time, so it is reproducible.
+- An `inference` configuration block governing resampling cost, and the new estimators wired into
+  `analyse_country` so their results are serialized alongside the rest.
+
+### Notes and limitations
+
+The median dataflow identifier in `config/data_sources.yml` is **unverified** and must be
+confirmed against the OECD Data Explorer before a live source freeze. The coverage gate, the
+canonicaliser and their tests are complete and exercised against recorded frames; only the
+identifier itself awaits confirmation, and the code refuses to assume a default.
+
+The pooled panel estimate is a robustness check, never a replacement for the country-specific
+estimates. None of the new estimators licenses causal language: the break test locates a date
+without explaining it, and the bands describe sampling uncertainty only.
+
+### Validation
+
+- **118 tests pass**, up from 84; coverage 71.53% against a 65% floor.
+- `ruff check`, `ruff format --check` and `mypy --strict` are clean.
+- The suite now takes about 75 seconds, dominated by the bootstrap replications in the pipeline
+  test. `inference.enabled: false` skips them for a fast exploratory run.
+
+
 ## Manuscript trees removed from version control — 2026-08-24
 
 The `paper/` and `papers/` trees are no longer tracked, and were purged from the git history
