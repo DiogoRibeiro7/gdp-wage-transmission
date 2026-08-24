@@ -26,6 +26,7 @@ The primary country is **Portugal**. The code is designed from the beginning to 
 - [National-accounts decomposition](#national-accounts-decomposition)
 - [Rebuild from frozen responses without network access](#rebuild-from-frozen-responses-without-network-access)
 - [Statistical principles](#statistical-principles)
+- [Notebooks](#notebooks)
 - [Documentation](#documentation)
 - [Contributing](#contributing)
 - [Citation](#citation)
@@ -449,6 +450,30 @@ The revision table labels each observation `unchanged`, `revised`, `added`, or `
 - Price bases and deflators are explicit in every processed series.
 - Revisions to official data are expected; raw snapshots and metadata make runs auditable.
 - Flexible specifications are accompanied by pre-specified interpretation gates for cointegration, shock balance, break-segment size, local-projection effective sample size, and state-space precision.
+
+## Notebooks
+
+Four notebooks under [`notebooks/`](notebooks/) consume the package; none of them reimplements a
+transformation. They are **committed with their outputs**, so the estimator results are readable
+on GitHub without installing anything or waiting for a bootstrap to finish.
+
+| Notebook | Contents |
+| --- | --- |
+| [01_data_audit](notebooks/01_data_audit.ipynb) | Coverage, gaps, provenance, and the schema guard rejecting a mixed price base |
+| [02_portugal_core_models](notebooks/02_portugal_core_models.ipynb) | The full stack on the frozen Portugal extract: reliability flags first, then the primary estimand, the BIC segmentation against the sup-F break test, and HAC intervals against bootstrap bands |
+| [03_cross_country_robustness](notebooks/03_cross_country_robustness.ipynb) | Country-specific estimates and heterogeneity before the pooled fixed-effects estimate |
+| [04_labour_share_decomposition](notebooks/04_labour_share_decomposition.ipynb) | The accounting identity, its components, and a check that the residual closes |
+
+Notebooks 01 and 02 run on the tracked Portugal reference extract. Notebooks 03 and 04 need a
+processed panel that is not tracked; without it they fall back to clearly labelled **simulated**
+frames that exercise the interface and are not evidence about any economy.
+
+Their source lives in [`tools/build_notebooks.py`](tools/build_notebooks.py) rather than in the
+notebook JSON, so a change is reviewable as a Python diff. Rebuild and re-execute all four with:
+
+```bash
+make notebooks
+```
 
 ## Documentation
 

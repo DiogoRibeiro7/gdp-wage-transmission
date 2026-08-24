@@ -1,4 +1,4 @@
-.PHONY: help install hooks format format-check lint typecheck test coverage check build clean integrity release-manifest release-manifest-verify release-archive demo freeze-plan freeze-fetch freeze-audit snapshot-registry publication-gate publication-dossier wage-distribution-breaks
+.PHONY: help install hooks format format-check lint typecheck test coverage check build clean integrity release-manifest release-manifest-verify release-archive notebooks demo freeze-plan freeze-fetch freeze-audit snapshot-registry publication-gate publication-dossier wage-distribution-breaks
 
 # Default target: list the documented entry points.
 help:
@@ -50,6 +50,12 @@ release-manifest-verify: ## Check RELEASE_MANIFEST.sha256 against the working tr
 
 release-archive: ## Check that git's archive of REF matches the manifest it carries
 	poetry run python tools/integrity.py release-archive verify --ref $(REF)
+
+notebooks: ## Rebuild the notebooks from tools/build_notebooks.py and execute them in place
+	poetry run python tools/build_notebooks.py
+	poetry run ruff check --fix notebooks/
+	poetry run ruff format notebooks/
+	poetry run python tools/run_notebooks.py
 
 demo: ## Run the pipeline against the bundled synthetic sample
 	poetry run wage-transmission analyse --input data/sample/synthetic_portugal.csv --country PRT --output results/demo
