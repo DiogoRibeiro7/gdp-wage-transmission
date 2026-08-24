@@ -11,7 +11,7 @@ type: software
 authors:
   - family-names: "Ribeiro"
     given-names: "Diogo"
-    affiliation: "ESMAD - Escola Superior de Media Arte e Design; Mysense.ai"
+    affiliation: "ESMAD - School of Media Arts and Design, Technical University of Porto; Mysense.ai"
     orcid: "https://orcid.org/0009-0001-2022-7072"
 version: 0.6.0
 date-released: 2026-08-22
