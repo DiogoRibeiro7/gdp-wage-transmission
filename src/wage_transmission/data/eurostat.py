@@ -26,6 +26,17 @@ def _ordered_codes(category: Mapping[str, Any]) -> list[str]:
     raise ValueError("Unsupported JSON-stat category index representation.")
 
 
+class EurostatCoverageError(ValueError):
+    """A valid payload that contains no observations for the requested selection.
+
+    This is distinct from a semantic contract failure. A contract failure means the response
+    carries the *wrong* series and must never be canonicalised. Empty coverage means the response
+    is correct and the requested country simply has no data in that dataset -- the United Kingdom
+    in the national-accounts collections after its withdrawal, for instance. The first is a defect;
+    the second is a fact about the source, and is recorded rather than raised past the caller.
+    """
+
+
 def validate_jsonstat_filters(
     payload: Mapping[str, Any],
     *,
@@ -48,6 +59,12 @@ def validate_jsonstat_filters(
         if not isinstance(category, Mapping):
             raise ValueError(f"Eurostat dimension {dimension!r} has no category object.")
         codes = _ordered_codes(category)
+        if not codes:
+            raise EurostatCoverageError(
+                f"Eurostat returned no {dimension!r} categories for the requested selection "
+                f"(expected {expected_code!r}). The payload is valid; this selection has no "
+                f"coverage in the dataset."
+            )
         if codes != [expected_code]:
             raise ValueError(
                 f"Eurostat semantic contract failed for {dimension!r}: "

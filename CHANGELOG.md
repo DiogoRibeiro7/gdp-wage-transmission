@@ -1,5 +1,51 @@
 # Changelog
 
+## First live source freeze, and what it found — 2026-08-24
+
+The publication source freeze ran for the first time. Continuous integration had been blocked
+until the repository became public, and before that the local environment could not make outbound
+requests, so this path had never executed end to end.
+
+**All 63 official OECD and Eurostat queries fetched and verified.** The freeze then failed while
+rebuilding the analytical panels, with:
+
+```
+ValueError: Eurostat semantic contract failed for 'geo': expected only 'UK', got [].
+```
+
+### What that revealed
+
+The guard was right to stop, but it was describing the wrong problem. `validate_jsonstat_filters`
+treated two very different situations identically:
+
+- the response carries the **wrong** series — a substituted country or unit, which must never be
+  canonicalised under the right name;
+- the response is **correct and empty** — the requested country simply has no observations in that
+  dataset.
+
+The United Kingdom is the second case. It is configured in `decomposition_countries`, and Eurostat
+returns a valid national-accounts payload for it that contains no data. Reporting that as a
+semantic contract failure sent an operator looking for a broken query when the truth was a fact
+about the source.
+
+### Fixed
+
+- `EurostatCoverageError`, a `ValueError` subclass, is raised when a requested dimension comes back
+  empty. Callers that do not care about the distinction are unaffected, since it is still a
+  `ValueError`.
+- `build_decomposition_from_snapshots` catches it, leaves the country in the configured list, and
+  lets the existing coverage report record the gap. The absence stays explicit, which is what
+  `config/project.yml` asks for, rather than becoming a silent drop or a fatal error.
+- A series where **every** requested country comes back empty now raises. That is a broken query
+  rather than a coverage gap, and the two should not be confused in the other direction either.
+
+### Validation
+
+- **138 tests pass**, up from 134. Four cover the new distinction, including that a substituted
+  country is still fatal and that the coverage error remains catchable as a `ValueError`.
+- `ruff check`, `ruff format --check` and `mypy --strict` clean.
+
+
 ## Specification locked before the first source freeze — 2026-08-24
 
 A specification lock was written immediately before the first publication source freeze was

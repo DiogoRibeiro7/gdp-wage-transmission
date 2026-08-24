@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from wage_transmission.data.eurostat import jsonstat_to_frame
+from wage_transmission.data.eurostat import (
+    EurostatCoverageError,
+    jsonstat_to_frame,
+    validate_jsonstat_filters,
+)
 
 
 def test_jsonstat_decoder() -> None:
@@ -102,3 +106,39 @@ def test_decomposition_coverage_preserves_missing_source_information() -> None:
     assert hicp_row["first_year"] == 2020
     assert hicp_row["last_year"] == 2022
     assert hicp_row["coverage_ratio"] == pytest.approx(2 / 3)
+
+
+def _payload(geo_index: dict[str, int]) -> dict[str, object]:
+    """A minimal JSON-stat payload with a chosen geo category."""
+    return {
+        "id": ["geo", "time"],
+        "size": [len(geo_index), 1],
+        "dimension": {
+            "geo": {"category": {"index": geo_index}},
+            "time": {"category": {"index": {"2020": 0}}},
+        },
+        "value": {"0": 1.0},
+    }
+
+
+def test_empty_geo_is_a_coverage_gap_not_a_contract_failure() -> None:
+    """A valid response with no observations means the country is absent, not substituted."""
+    with pytest.raises(EurostatCoverageError, match="no coverage in the dataset"):
+        validate_jsonstat_filters(_payload({}), expected={"geo": "UK"})
+
+
+def test_a_substituted_geo_is_still_a_contract_failure() -> None:
+    """The wrong country in the response must never be canonicalised under the right name."""
+    with pytest.raises(ValueError, match="semantic contract failed") as caught:
+        validate_jsonstat_filters(_payload({"DE": 0}), expected={"geo": "UK"})
+    assert not isinstance(caught.value, EurostatCoverageError)
+
+
+def test_the_expected_geo_passes() -> None:
+    validate_jsonstat_filters(_payload({"PT": 0}), expected={"geo": "PT"})
+
+
+def test_coverage_error_is_catchable_as_value_error() -> None:
+    """Callers that do not care about the distinction keep working unchanged."""
+    with pytest.raises(ValueError):
+        validate_jsonstat_filters(_payload({}), expected={"geo": "UK"})

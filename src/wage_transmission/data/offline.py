@@ -10,6 +10,7 @@ import pandas as pd
 
 from wage_transmission.data.eurostat import (
     ISO3_TO_EUROSTAT,
+    EurostatCoverageError,
     _canonical_annual_series,
     jsonstat_to_frame,
     summarise_decomposition_coverage,
@@ -126,10 +127,12 @@ def build_decomposition_from_snapshots(
     series_frames: dict[str, pd.DataFrame] = {}
     for value_name, (source, dataset, expected_filters) in source_specs.items():
         rows: list[pd.DataFrame] = []
+        requested_any = False
         for country in countries:
             path = raw_dir / f"eurostat_{value_name}_{country}_{start_year}_{end_year}.json"
             if not path.exists():
                 continue
+            requested_any = True
             payload = _read_verified_json(path, require_metadata=require_metadata)
             if require_metadata:
                 metadata = verify_snapshot(path)
@@ -141,10 +144,16 @@ def build_decomposition_from_snapshots(
             geo = ISO3_TO_EUROSTAT.get(country)
             if geo is None:
                 continue
-            validate_jsonstat_filters(
-                payload,
-                expected={**expected_filters, "geo": geo},
-            )
+            try:
+                validate_jsonstat_filters(
+                    payload,
+                    expected={**expected_filters, "geo": geo},
+                )
+            except EurostatCoverageError:
+                # A valid response with no observations. The country keeps its place in the
+                # configured list and the coverage report records the gap, so the absence is
+                # explicit rather than a silent drop.
+                continue
             decoded = jsonstat_to_frame(payload)
             canonical = _canonical_annual_series(
                 decoded,
@@ -158,6 +167,13 @@ def build_decomposition_from_snapshots(
                 rows.append(canonical)
         if rows:
             series_frames[value_name] = pd.concat(rows, ignore_index=True)
+        elif requested_any:
+            # Individual countries may legitimately have no coverage, but a series where every
+            # requested country is empty means the query itself is wrong, not the source.
+            raise ValueError(
+                f"No configured country returned observations for {value_name!r} from "
+                f"{dataset!r}. This indicates a broken query rather than a coverage gap."
+            )
         else:
             series_frames[value_name] = pd.DataFrame(
                 columns=["country", "year", value_name, "source"]
