@@ -341,13 +341,17 @@ def _reliability_table(reliability: pd.DataFrame, core: pd.DataFrame) -> str:
         driver = str(row["driver"])
         model = str(row["model"])
         eligible = "eligible" if _bool_value(row["claim_eligible"]) else "not eligible"
+        eligible_cell = _escape_latex(eligible)
+        if model == "local_projections" and _bool_value(row["claim_eligible"]):
+            # The gate passes only for the shorter horizons; a bare "eligible" overstates it.
+            eligible_cell = _escape_latex(eligible) + r", $h \le 3$"
         reason = str(row["reason"])
         rows.append(
             "{} & {} & {} & {} & {} \\\\".format(
                 _escape_latex(_driver_label(driver)),
                 _escape_latex(MODEL_LABELS.get(model, model.replace("_", " "))),
                 _model_estimate(core, driver, model),
-                _escape_latex(eligible),
+                eligible_cell,
                 GATE_LABELS.get(reason, _escape_latex(reason)),
             )
         )
@@ -476,49 +480,57 @@ def _local_projection_table(core: pd.DataFrame) -> str | None:
     block-bootstrap interval. The gap between them is the point, since overlapping windows leave
     a small effective sample at long horizons and the HAC interval does not know that.
     """
-    results = _verified_model_results(core, "productivity_per_worker")
-    if not results:
+    collected: list[tuple[str, list[Any], dict[int, Any], set[int]]] = []
+    for driver in ("productivity_per_worker", "productivity"):
+        results = _verified_model_results(core, driver)
+        if not results:
+            continue
+        points = results.get("local_projections") or []
+        if not points:
+            continue
+        bands = {int(b["horizon"]): b for b in (results.get("local_projection_bands") or [])}
+        matched = core.loc[core["driver"] == driver]
+        supported: set[int] = set()
+        if not matched.empty:
+            raw = str(matched.iloc[0].get("supported_local_projection_horizons") or "")
+            supported = {int(part) for part in raw.split(";") if part.strip().isdigit()}
+        collected.append((driver, points, bands, supported))
+    if not collected:
         return None
-    points = results.get("local_projections") or []
-    bands = {int(b["horizon"]): b for b in (results.get("local_projection_bands") or [])}
-    if not points:
-        return None
-
-    supported: set[int] = set()
-    matched = core.loc[core["driver"] == "productivity_per_worker"]
-    if not matched.empty:
-        raw = str(matched.iloc[0].get("supported_local_projection_horizons") or "")
-        supported = {int(part) for part in raw.split(";") if part.strip().isdigit()}
 
     rows: list[str] = []
-    for point in points:
-        horizon = int(point["horizon"])
-        band = bands.get(horizon)
-        bootstrap = (
-            f"[{_fmt_float(band['lower_95'])}, {_fmt_float(band['upper_95'])}]" if band else "--"
-        )
-        marker = "" if horizon in supported else r"$^{\dagger}$"
-        rows.append(
-            "{}{} & {} & {} & [{}, {}] & {} & {} \\\\".format(
-                horizon,
-                marker,
-                _fmt_float(point["estimate"]),
-                _fmt_float(point["std_error"]),
-                _fmt_float(point["lower_95"]),
-                _fmt_float(point["upper_95"]),
-                bootstrap,
-                int(point["nobs"]),
+    for driver, points, bands, supported in collected:
+        for point in points:
+            horizon = int(point["horizon"])
+            band = bands.get(horizon)
+            bootstrap = (
+                f"[{_fmt_float(band['lower_95'])}, {_fmt_float(band['upper_95'])}]"
+                if band
+                else "--"
             )
-        )
+            marker = "" if horizon in supported else r"$^{\dagger}$"
+            rows.append(
+                "{} & {}{} & {} & {} & [{}, {}] & {} & {} \\\\".format(
+                    _escape_latex(_driver_label(driver)),
+                    horizon,
+                    marker,
+                    _fmt_float(point["estimate"]),
+                    _fmt_float(point["std_error"]),
+                    _fmt_float(point["lower_95"]),
+                    _fmt_float(point["upper_95"]),
+                    bootstrap,
+                    int(point["nobs"]),
+                )
+            )
 
     return _table_wrapper(
         caption="Local-projection responses of real wages to productivity growth.",
         label="tab:local-projections",
-        columns="lrrrrr",
-        header=r"Horizon & Estimate & HAC SE & HAC 95\% CI & Bootstrap 95\% CI & $n$",
+        columns="lrrrrrr",
+        header=(r"Driver & Horizon & Estimate & HAC SE & HAC 95\% CI & Bootstrap 95\% CI & $n$"),
         rows=rows,
         note=(
-            "Cumulative log-wage response at each horizon, primary driver. Horizons marked "
+            "Cumulative log-wage response at each horizon, for both drivers. Horizons marked "
             "$\\dagger$ fall below the pre-specified minimum effective sample and are "
             "exploratory. The bootstrap interval is a circular moving-block percentile interval "
             "that resamples the joint growth pairs; it is wider than the HAC interval at longer "
@@ -901,23 +913,31 @@ def _panel_robustness_table(dossier_dir: Path) -> str | None:
     clusters = int(estimates[0].get("n_countries", 0))
     nobs = int(estimates[0].get("nobs", 0))
     return _table_wrapper(
-        caption="Pooled within-country transmission (post-hoc robustness).",
+        caption="Pooled contemporaneous within-country association (post-hoc, not the primary estimand).",
         label="tab:panel-robustness",
         columns="llrrrr",
         header=r"Driver & Fixed effects & Estimate & Clustered SE & 95\% CI & Within $R^2$",
         rows=rows,
         note=(
-            f"Estimated on {nobs} country-year growth observations across {clusters} countries. "
+            "This is a static specification: real wage growth is regressed on contemporaneous "
+            "driver growth with no lags and no lagged dependent variable. The coefficient is "
+            "therefore a contemporaneous association and is \\emph{not} the cumulative "
+            "multiplier that is the paper's primary estimand, which divides the summed driver "
+            "coefficients by one minus the lagged-dependent coefficient. The two are different "
+            f"objects and should not be compared. Estimated on {nobs} country-year growth "
+            f"observations across {clusters} countries, which is every available annual first "
+            "difference; a dynamic panel matching the primary specification would lose three "
+            "observations per country. "
             "The estimator is part of the locked analysis package, but the decision to report it "
             "was taken after the pre-specified estimates were seen, so this is a post-hoc "
-            "robustness exercise and not part of the confirmatory hierarchy. It is not a "
-            "replacement for the country-specific estimates: a pooled coefficient imposes "
-            "homogeneous dynamics, and where countries differ it averages distinct processes. "
-            f"Cluster-robust inference is asymptotic in the number of clusters, and {clusters} is "
-            "well below the conventional threshold of roughly thirty, so these standard errors "
-            "are optimistic. Absorbing year effects removes the common component that the "
-            "independence discussion in the main text concerns, which is why the estimate moves "
-            "so much between the two rows."
+            "exercise outside the confirmatory hierarchy. "
+            "Standard errors use a CR1 finite-sample correction, "
+            f"$(G/(G-1))\\cdot((N-1)/(N-K))$, clustered on country. With {clusters} clusters "
+            "this is below the range in which cluster-robust asymptotics are reliable; CR2 with "
+            "adjusted degrees of freedom, or a wild cluster bootstrap, would be more appropriate "
+            "and is not attempted here. Year effects absorb an additive shock common to all "
+            "countries in a year; they do not absorb heterogeneous exposure to a common shock, "
+            "regional shocks, or residual cross-sectional dependence."
         ),
     )
 

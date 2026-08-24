@@ -6,7 +6,12 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-from tools.publication_report import audit_paper_sources, build_paper_packet, verify_dossier
+from tools.publication_report import (
+    audit_paper_sources,
+    build_paper_packet,
+    preflight_pdf,
+    verify_dossier,
+)
 
 
 def _sha(path: Path) -> str:
@@ -177,3 +182,59 @@ def test_manual_table_in_paper_source_is_rejected(tmp_path: Path) -> None:
     )
     with pytest.raises(ValueError, match="Manual empirical table"):
         audit_paper_sources(paper_dir=paper, generated_manifest=packet.manifest)
+
+
+def _stub_paper(root: Path, *, body: bytes) -> Path:
+    """A minimal paper directory: a log with no warnings and one source file."""
+    paper = root / "paper"
+    (paper / "generated").mkdir(parents=True)
+    (paper / "main.log").write_text(
+        "This is pdfTeX\nOutput written on main.pdf\n", encoding="utf-8"
+    )
+    (paper / "main.tex").write_bytes(body)
+    return paper
+
+
+def test_preflight_passes_on_a_clean_source(tmp_path: Path) -> None:
+    paper = _stub_paper(tmp_path, body=b"Table~" + bytes([92]) + b"ref{tab:x} is fine.\n")
+
+    assert preflight_pdf(paper) == 0
+
+
+def test_preflight_catches_a_carriage_return_from_a_lost_backslash(tmp_path: Path) -> None:
+    """A lost backslash before "ref" leaves 0x0D, which text-mode reads would silently normalise."""
+    paper = _stub_paper(tmp_path, body=b"Table~" + bytes([13]) + b"ef{tab:x}\n")
+
+    assert preflight_pdf(paper) == 1
+
+
+def test_preflight_catches_a_bell_from_a_lost_backslash(tmp_path: Path) -> None:
+    paper = _stub_paper(tmp_path, body=bytes([7]) + b"ppendix\n")
+
+    assert preflight_pdf(paper) == 1
+
+
+def test_preflight_accepts_crlf_line_endings(tmp_path: Path) -> None:
+    """A carriage return in a CRLF pair is a line ending, not a mangled command."""
+    paper = _stub_paper(tmp_path, body=b"One line.\nAnother line.\n")
+
+    assert preflight_pdf(paper) == 0
+
+
+def test_preflight_catches_an_undefined_reference(tmp_path: Path) -> None:
+    paper = _stub_paper(tmp_path, body=b"Nothing wrong here.\n")
+    (paper / "main.log").write_text(
+        "LaTeX Warning: Reference `tab:missing' on page 1 undefined on input line 4.\n",
+        encoding="utf-8",
+    )
+
+    assert preflight_pdf(paper) == 1
+
+
+def test_preflight_catches_an_overfull_box(tmp_path: Path) -> None:
+    paper = _stub_paper(tmp_path, body=b"Nothing wrong here.\n")
+    (paper / "main.log").write_text(
+        "Overfull \hbox (42.0pt too wide) in paragraph at lines 1--2\n", encoding="utf-8"
+    )
+
+    assert preflight_pdf(paper) == 1
