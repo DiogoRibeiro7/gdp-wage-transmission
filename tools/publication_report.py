@@ -857,6 +857,67 @@ def _source_table(config_path: Path) -> str | None:
     )
 
 
+def _panel_robustness_table(dossier_dir: Path) -> str | None:
+    """Render the pooled panel estimates, labelled as post-hoc.
+
+    The artefact records ``prespecified: false``. That flag is enforced here rather than
+    trusted: a payload claiming to be pre-specified is refused, because this table sits in an
+    appendix under a heading that describes it as a robustness exercise, and a pre-specified
+    result must not be presented there as though it were one.
+    """
+    path = dossier_dir / "panel_robustness.json"
+    if not path.is_file():
+        return None
+    payload = _load_json_object(path)
+    if payload.get("prespecified") is not False:
+        raise ValueError(
+            f"{path} does not record prespecified=false. This table presents results as post-hoc "
+            "robustness, and a pre-specified estimate must not be reported under that heading."
+        )
+
+    estimates = payload.get("estimates") or []
+    if not estimates:
+        return None
+
+    rows: list[str] = []
+    for record in estimates:
+        effects = "Country + year" if record.get("time_effects") else "Country"
+        rows.append(
+            "{} & {} & {} & {} & [{}, {}] & {} \\\\".format(
+                _escape_latex(_driver_label(str(record["driver"]))),
+                effects,
+                _fmt_float(record["elasticity"]),
+                _fmt_float(record["std_error"]),
+                _fmt_float(record["lower_95"]),
+                _fmt_float(record["upper_95"]),
+                _fmt_float(record["within_r_squared"]),
+            )
+        )
+
+    clusters = int(estimates[0].get("n_countries", 0))
+    nobs = int(estimates[0].get("nobs", 0))
+    return _table_wrapper(
+        caption="Pooled within-country transmission (post-hoc robustness).",
+        label="tab:panel-robustness",
+        columns="llrrrr",
+        header=r"Driver & Fixed effects & Estimate & Clustered SE & 95\% CI & Within $R^2$",
+        rows=rows,
+        note=(
+            f"Estimated on {nobs} country-year growth observations across {clusters} countries. "
+            "The estimator is part of the locked analysis package, but the decision to report it "
+            "was taken after the pre-specified estimates were seen, so this is a post-hoc "
+            "robustness exercise and not part of the confirmatory hierarchy. It is not a "
+            "replacement for the country-specific estimates: a pooled coefficient imposes "
+            "homogeneous dynamics, and where countries differ it averages distinct processes. "
+            f"Cluster-robust inference is asymptotic in the number of clusters, and {clusters} is "
+            "well below the conventional threshold of roughly thirty, so these standard errors "
+            "are optimistic. Absorbing year effects removes the common component that the "
+            "independence discussion in the main text concerns, which is why the estimate moves "
+            "so much between the two rows."
+        ),
+    )
+
+
 def _primary_results_text(
     core: pd.DataFrame, cross: pd.DataFrame, reliability: pd.DataFrame
 ) -> str:
@@ -1003,6 +1064,10 @@ def build_paper_packet(*, dossier_dir: Path, paper_dir: Path) -> PaperPacket:
     sources = _source_table(Path("config/data_sources.yml"))
     if sources is not None:
         optional_paths.append(_write(generated / "table_sources.tex", sources))
+
+    panel = _panel_robustness_table(dossier_dir)
+    if panel is not None:
+        optional_paths.append(_write(generated / "table_panel_robustness.tex", panel))
 
     markdown_summary = _write(
         generated / "results_summary.md", _markdown_summary(core, cross, reliability)
