@@ -67,6 +67,28 @@ class InferenceConfig(_StrictConfig):
     seed: int = Field(default=20260824, ge=0)
 
 
+class DynamicPanelConfig(_StrictConfig):
+    """Frozen dynamic-panel specification, inference plan and reporting gates.
+
+    These values are fixed before a source snapshot is retrieved. `replications` and
+    `bias_correction_draws` dominate runtime: every replication re-estimates the bias-corrected
+    model, and every bias correction simulates the panel `bias_correction_draws` times.
+    """
+
+    driver_lags: int = Field(default=2, ge=0)
+    block_length: int = Field(default=4, ge=1)
+    sensitivity_block_lengths: tuple[int, ...] = (3, 5)
+    replications: int = Field(default=4999, ge=99)
+    bias_correction_draws: int = Field(default=200, ge=25)
+    bias_correction_iterations: int = Field(default=12, ge=1)
+    driscoll_kraay_lags: int = Field(default=3, ge=0)
+    seed: int = Field(default=20260825, ge=0)
+    max_abs_persistence: float = Field(default=1.0, gt=0.0)
+    min_effective_years: int = Field(default=25, ge=1)
+    min_finite_multiplier_share: float = Field(default=0.95, gt=0.0, le=1.0)
+    min_convergence_share: float = Field(default=0.95, gt=0.0, le=1.0)
+
+
 class ReliabilityConfig(_StrictConfig):
     """Minimum sample conditions for interpreting flexible specifications."""
 
@@ -87,6 +109,7 @@ class ModelsConfig(_StrictConfig):
     asymmetry: AsymmetryConfig = AsymmetryConfig()
     vecm: VECMConfig = VECMConfig()
     inference: InferenceConfig = InferenceConfig()
+    dynamic_panel: DynamicPanelConfig = DynamicPanelConfig()
     reliability: ReliabilityConfig = ReliabilityConfig()
 
 

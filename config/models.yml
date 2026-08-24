@@ -34,10 +34,29 @@ inference:
   # optimistic ones in short annual samples.
   enabled: true
   break_trim: 0.15
-  break_bootstrap_replications: 499
-  band_replications: 199
+  break_bootstrap_replications: 1999
+  band_replications: 1999
   block_length: 4
   seed: 20260824
+
+dynamic_panel:
+  # Frozen for v0.8.0 before the source snapshot was retrieved. The structure deliberately
+  # matches the country-level distributed lag, so the panel estimand is the same cumulative
+  # multiplier rather than a contemporaneous slope.
+  driver_lags: 2
+  block_length: 4
+  sensitivity_block_lengths: [3, 5]
+  replications: 4999
+  bias_correction_draws: 200
+  bias_correction_iterations: 12
+  # Newey-West rule of thumb, ceil(4 (T/100)^(2/9)) at T = 28.
+  driscoll_kraay_lags: 3
+  seed: 20260825
+  # Reporting gates. A specification failing any of them is reported and labelled ineligible.
+  max_abs_persistence: 1.0
+  min_effective_years: 25
+  min_finite_multiplier_share: 0.95
+  min_convergence_share: 0.95
 
 reliability:
   min_asymmetry_shocks_per_sign: 8

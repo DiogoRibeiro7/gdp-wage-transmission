@@ -49,6 +49,7 @@ class PublicationDossierResult:
     reliability: Path
     cross_country: Path
     decomposition: Path | None
+    dynamic_panel: Path | None
     summary_markdown: Path
     manifest: Path
 
@@ -416,6 +417,103 @@ def _decomposition_rows(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
+_DYNAMIC_PANEL_FLOAT_FIELDS = (
+    "lsdv_driver_sum",
+    "lsdv_persistence",
+    "lsdv_multiplier",
+    "corrected_driver_sum",
+    "corrected_persistence",
+    "corrected_multiplier",
+    "lsdv_multiplier_bootstrap_median",
+    "corrected_multiplier_bootstrap_median",
+    "corrected_persistence_bootstrap_median",
+    "driscoll_kraay_driver_sum_std_error",
+    "driscoll_kraay_persistence_std_error",
+    "driscoll_kraay_multiplier_std_error",
+    "convergence_share",
+    "finite_multiplier_share",
+    "one_minus_persistence_min_abs",
+)
+
+_DYNAMIC_PANEL_INT_FIELDS = (
+    "n_countries",
+    "nobs",
+    "n_effective_years",
+    "driver_lags",
+    "block_length",
+    "driscoll_kraay_lags",
+    "replications_requested",
+    "replications_completed",
+    "correction_iterations",
+    "correction_draws",
+    "seed",
+)
+
+
+def _interval(payload: Mapping[str, Any], key: str) -> tuple[float, float]:
+    value = payload.get(key)
+    if not isinstance(value, list) or len(value) != 2:
+        raise ValueError(f"{key} must be a two-element interval.")
+    return _float(value[0], label=f"{key}[0]"), _float(value[1], label=f"{key}[1]")
+
+
+def _dynamic_panel_rows(path: Path, *, driver: str) -> list[dict[str, Any]]:
+    """Flatten one driver's frozen dynamic-panel hierarchy into dossier rows.
+
+    Gate failures travel with the estimate as a joined string rather than being dropped, so a
+    formatter cannot present an ineligible specification as a clean result.
+    """
+    payload = _load_json_mapping(path)
+    specifications = payload.get("specifications")
+    if not isinstance(specifications, list) or not specifications:
+        raise ValueError(f"Dynamic panel file {path} contains no specifications.")
+    digest = sha256_bytes(path.read_bytes())
+    rows: list[dict[str, Any]] = []
+    for position, item in enumerate(specifications):
+        spec = _require_mapping(item, label=f"{path}[{position}]")
+        if str(spec.get("driver")) != driver:
+            raise ValueError(
+                f"Dynamic panel file {path} holds driver {spec.get('driver')!r}, expected {driver!r}."
+            )
+        failures = spec.get("gate_failures")
+        if not isinstance(failures, list):
+            raise ValueError("gate_failures must be a list.")
+        quantiles = _require_mapping(
+            spec.get("one_minus_persistence_quantiles"), label="one_minus_persistence_quantiles"
+        )
+        row: dict[str, Any] = {
+            "driver": driver,
+            "role": str(spec.get("role")),
+            "fixed_effects": str(spec.get("fixed_effects")),
+        }
+        for field_name in _DYNAMIC_PANEL_INT_FIELDS:
+            row[field_name] = _int(spec.get(field_name), label=field_name)
+        for field_name in _DYNAMIC_PANEL_FLOAT_FIELDS:
+            row[field_name] = _float(spec.get(field_name), label=field_name)
+        for key, name in (
+            ("lsdv_multiplier_ci", "lsdv_multiplier_ci"),
+            ("corrected_multiplier_ci", "corrected_multiplier_ci"),
+            ("corrected_persistence_ci", "corrected_persistence_ci"),
+        ):
+            low, high = _interval(spec, key)
+            row[f"{name}_low"] = low
+            row[f"{name}_high"] = high
+        for probability in ("p2.5", "p50", "p97.5"):
+            row[f"one_minus_persistence_{probability}"] = _float(
+                quantiles.get(probability), label=f"one_minus_persistence_{probability}"
+            )
+        row["correction_converged"] = _bool(
+            spec.get("correction_converged"), label="correction_converged"
+        )
+        row["rank_deficient"] = _bool(spec.get("rank_deficient"), label="rank_deficient")
+        row["claim_eligible"] = not failures
+        row["gate_failures"] = ";".join(str(value) for value in failures)
+        row["source_result_path"] = str(path)
+        row["source_result_sha256"] = digest
+        rows.append(row)
+    return rows
+
+
 def _write_markdown_summary(
     *,
     core: pd.DataFrame,
@@ -504,6 +602,7 @@ def build_publication_dossier(
     country_results: Mapping[str, Path],
     cross_country_results: Mapping[str, Path],
     decomposition_summary: Path | None,
+    dynamic_panel_results: Mapping[str, Path] | None,
     specification_lock: Path | None,
     publication_config: PublicationConfig,
     output_dir: Path,
@@ -557,6 +656,17 @@ def build_publication_dossier(
     reliability_frame.to_csv(reliability_path, index=False)
     cross_frame.to_csv(cross_path, index=False)
 
+    dynamic_panel_path: Path | None = None
+    if dynamic_panel_results:
+        dynamic_rows: list[dict[str, Any]] = []
+        for driver in [publication_config.primary_driver, *publication_config.secondary_drivers]:
+            source = dynamic_panel_results.get(driver)
+            if source is None:
+                raise ValueError(f"Missing dynamic panel results for driver: {driver}")
+            dynamic_rows.extend(_dynamic_panel_rows(source, driver=driver))
+        dynamic_panel_path = output_dir / "dynamic_panel_summary.csv"
+        pd.DataFrame(dynamic_rows).to_csv(dynamic_panel_path, index=False)
+
     decomposition_path: Path | None = None
     if decomposition_summary is not None:
         rows = _decomposition_rows(decomposition_summary)
@@ -579,6 +689,8 @@ def build_publication_dossier(
         inputs[str(summary_path)] = sha256_bytes(summary_path.read_bytes())
     if decomposition_summary is not None:
         inputs[str(decomposition_summary)] = sha256_bytes(decomposition_summary.read_bytes())
+    for source in (dynamic_panel_results or {}).values():
+        inputs[str(source)] = sha256_bytes(source.read_bytes())
 
     if specification_lock is not None:
         inputs[str(specification_lock)] = sha256_bytes(specification_lock.read_bytes())
@@ -586,6 +698,8 @@ def build_publication_dossier(
     outputs = [core_path, reliability_path, cross_path, markdown_path]
     if decomposition_path is not None:
         outputs.append(decomposition_path)
+    if dynamic_panel_path is not None:
+        outputs.append(dynamic_panel_path)
     manifest_path = output_dir / "publication_manifest.json"
     write_json(
         {
@@ -606,6 +720,7 @@ def build_publication_dossier(
         reliability=reliability_path,
         cross_country=cross_path,
         decomposition=decomposition_path,
+        dynamic_panel=dynamic_panel_path,
         summary_markdown=markdown_path,
         manifest=manifest_path,
     )

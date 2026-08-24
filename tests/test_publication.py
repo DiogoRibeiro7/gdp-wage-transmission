@@ -234,6 +234,7 @@ def test_publication_dossier_enforces_reliability_gates(tmp_path: Path) -> None:
             "productivity": hour_cross,
         },
         decomposition_summary=None,
+        dynamic_panel_results=None,
         specification_lock=lock_path,
         publication_config=config,
         output_dir=tmp_path / "dossier",
@@ -264,6 +265,7 @@ def test_dossier_records_when_no_lock_was_verified(tmp_path: Path) -> None:
             "productivity": hour_cross,
         },
         decomposition_summary=None,
+        dynamic_panel_results=None,
         specification_lock=None,
         publication_config=load_publication_config(Path("config/publication.yml")),
         output_dir=tmp_path / "dossier",
@@ -274,3 +276,135 @@ def test_dossier_records_when_no_lock_was_verified(tmp_path: Path) -> None:
     assert manifest["specification_lock_verified"] is False
     assert manifest["specification_lock_label"] is None
     assert manifest["outputs"]
+
+
+def _write_dynamic_panel(path: Path, *, driver: str, gate_failures: list[str]) -> None:
+    """A minimal frozen dynamic-panel payload with one primary specification."""
+
+    def specification(
+        role: str, effects: str, block: int, failures: list[str]
+    ) -> dict[str, object]:
+        return {
+            "driver": driver,
+            "role": role,
+            "fixed_effects": effects,
+            "n_countries": 13,
+            "nobs": 363,
+            "n_effective_years": 28,
+            "driver_lags": 2,
+            "block_length": block,
+            "driscoll_kraay_lags": 3,
+            "replications_requested": 4999,
+            "replications_completed": 4999,
+            "correction_iterations": 6,
+            "correction_draws": 200,
+            "seed": 20260825,
+            "lsdv_driver_sum": 0.48,
+            "lsdv_persistence": 0.10,
+            "lsdv_multiplier": 0.53,
+            "corrected_driver_sum": 0.45,
+            "corrected_persistence": 0.15,
+            "corrected_multiplier": 0.53,
+            "lsdv_multiplier_bootstrap_median": 0.50,
+            "corrected_multiplier_bootstrap_median": 0.50,
+            "corrected_persistence_bootstrap_median": 0.13,
+            "driscoll_kraay_driver_sum_std_error": 0.06,
+            "driscoll_kraay_persistence_std_error": 0.08,
+            "driscoll_kraay_multiplier_std_error": 0.09,
+            "convergence_share": 1.0,
+            "finite_multiplier_share": 1.0,
+            "one_minus_persistence_min_abs": 0.6,
+            "lsdv_multiplier_ci": [0.34, 0.75],
+            "corrected_multiplier_ci": [0.33, 0.76],
+            "corrected_persistence_ci": [-0.05, 0.32],
+            "one_minus_persistence_quantiles": {"p2.5": 0.68, "p50": 0.87, "p97.5": 1.05},
+            "correction_converged": True,
+            "rank_deficient": False,
+            "gate_failures": failures,
+        }
+
+    payload = {
+        "driver": driver,
+        "primary": specification("primary", "country_and_year", 4, gate_failures),
+        "specifications": [
+            specification("primary", "country_and_year", 4, gate_failures),
+            specification("sensitivity_fixed_effects", "country", 4, []),
+        ],
+    }
+    write_json(payload, path)
+
+
+def test_dynamic_panel_enters_the_dossier_with_its_gate_verdict(tmp_path: Path) -> None:
+    """An ineligible specification must reach the formatter labelled, not filtered out."""
+    worker = tmp_path / "worker.json"
+    hour = tmp_path / "hour.json"
+    _write_model_result(worker, estimate=0.6, cointegrated=False)
+    _write_model_result(hour, estimate=0.4, cointegrated=True)
+    worker_cross = tmp_path / "worker_cross.csv"
+    hour_cross = tmp_path / "hour_cross.csv"
+    _write_cross_country(worker_cross, driver="productivity_per_worker")
+    _write_cross_country(hour_cross, driver="productivity")
+    worker_panel = tmp_path / "dynamic_worker.json"
+    hour_panel = tmp_path / "dynamic_hour.json"
+    _write_dynamic_panel(worker_panel, driver="productivity_per_worker", gate_failures=[])
+    _write_dynamic_panel(
+        hour_panel, driver="productivity", gate_failures=["insufficient_effective_years"]
+    )
+
+    out = build_publication_dossier(
+        country_results={"productivity_per_worker": worker, "productivity": hour},
+        cross_country_results={
+            "productivity_per_worker": worker_cross,
+            "productivity": hour_cross,
+        },
+        decomposition_summary=None,
+        dynamic_panel_results={
+            "productivity_per_worker": worker_panel,
+            "productivity": hour_panel,
+        },
+        specification_lock=None,
+        publication_config=load_publication_config(Path("config/publication.yml")),
+        output_dir=tmp_path / "dossier",
+    )
+
+    assert out.dynamic_panel is not None
+    frame = pd.read_csv(out.dynamic_panel)
+    assert len(frame) == 4
+    primary = frame.loc[(frame["driver"] == "productivity") & (frame["role"] == "primary")].iloc[0]
+    assert not bool(primary["claim_eligible"])
+    assert primary["gate_failures"] == "insufficient_effective_years"
+    assert int(primary["nobs"]) == 363
+    eligible = frame.loc[frame["driver"] == "productivity_per_worker"].iloc[0]
+    assert bool(eligible["claim_eligible"])
+    manifest = json.loads(out.manifest.read_text(encoding="utf-8"))
+    assert str(worker_panel) in manifest["inputs"]
+
+
+def test_dossier_rejects_a_dynamic_panel_file_for_the_wrong_driver(tmp_path: Path) -> None:
+    worker = tmp_path / "worker.json"
+    hour = tmp_path / "hour.json"
+    _write_model_result(worker, estimate=0.6, cointegrated=False)
+    _write_model_result(hour, estimate=0.4, cointegrated=True)
+    worker_cross = tmp_path / "worker_cross.csv"
+    hour_cross = tmp_path / "hour_cross.csv"
+    _write_cross_country(worker_cross, driver="productivity_per_worker")
+    _write_cross_country(hour_cross, driver="productivity")
+    mislabelled = tmp_path / "dynamic_worker.json"
+    _write_dynamic_panel(mislabelled, driver="productivity", gate_failures=[])
+
+    with pytest.raises(ValueError, match="expected"):
+        build_publication_dossier(
+            country_results={"productivity_per_worker": worker, "productivity": hour},
+            cross_country_results={
+                "productivity_per_worker": worker_cross,
+                "productivity": hour_cross,
+            },
+            decomposition_summary=None,
+            dynamic_panel_results={
+                "productivity_per_worker": mislabelled,
+                "productivity": mislabelled,
+            },
+            specification_lock=None,
+            publication_config=load_publication_config(Path("config/publication.yml")),
+            output_dir=tmp_path / "dossier",
+        )

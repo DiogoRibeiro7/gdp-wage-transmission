@@ -29,6 +29,48 @@ The publication workflow fails if any locked hash changes. A genuinely necessary
 specification correction therefore requires a new lock and should be described as such in the
 changelog or paper revision history.
 
+## Registered locks
+
+The lock artefact stays outside version control, so its digests are recorded here instead. A
+reader can recompute every one of them from a checkout at the tagged commit and confirm that the
+specification was fixed *before* the source snapshot it was used to analyse:
+
+```bash
+poetry run python - <<'EOF'
+from pathlib import Path
+from wage_transmission.publication import build_specification_lock
+lock = build_specification_lock(
+    project_config=Path("config/project.yml"),
+    models_config=Path("config/models.yml"),
+    publication_config=Path("config/publication.yml"),
+    label="pre-source-freeze-2026-08-25-v0.8.0",
+)
+print(lock.analysis_code_sha256)
+EOF
+```
+
+| Lock label | Package | Analysis-tree SHA-256 | `models.yml` SHA-256 |
+| --- | --- | --- | --- |
+| `pre-source-freeze-2026-08-24` | 0.7.1 | `be29de1c5857f7ddf513e7ba32d3b1b2b26a124d04c02a3b657db86a3e8dd850` | `c3d925c1601d56fc467cb60a9cb6d6dbcbaef23ce1e0d4b18799e0a07582201a` |
+| `pre-source-freeze-2026-08-25-v0.8.0` | 0.8.0 | `0b14fbe21152bf884f948cefb71ca225d8b821de67495c43e7ec96ee6602b559` | `a47f74591aaa43a897055b77e3b7e84b8fea84c00d199bd7f9a5c6ffb3687bf8` |
+
+`config/project.yml` and `config/publication.yml` are unchanged between the two locks
+(`1586d98cf6598bc3f7ff302f6885c41e215e9365dbf466360def76c31443f848` and
+`aa745bf7d490cee24f679d7682fa51dbc8c657040d53b649c2db3d7d01a93554`).
+
+### What the v0.8.0 lock is, and is not
+
+The v0.8.0 specification -- the dynamic panel, its bias correction, its bootstrap plan and its
+reporting gates -- was written and locked before the 2026-08-25 source snapshot was retrieved. The
+commit that carries this table precedes the commit that carries the snapshot, so the ordering is
+checkable rather than asserted.
+
+That makes the follow-up analysis **prospectively locked**. It does not make it confirmatory, and it
+does not make it out-of-sample evidence. The specification was motivated by results already seen in
+v0.7.1, on a sample that overlaps this one almost completely; a new data vintage does not erase that
+history. The correct description is a prospectively locked follow-up analysis of a previously
+analysed sample.
+
 ## Primary estimand
 
 The pre-specified primary Portugal specification pairs annual real average wages with GDP per person
@@ -45,6 +87,40 @@ coefficients.
 GDP per hour is the secondary productivity definition. It is important economic evidence, but it is
 not allowed to displace the denominator-matched annual specification merely because it produces a
 more attractive coefficient.
+
+## Dynamic panel (locked for v0.8.0)
+
+The panel estimand is the *same* cumulative multiplier, from the same dynamic structure:
+
+\[
+\Delta\log w_{it} = \alpha_i + \lambda_t + \sum_{j=0}^{2}\beta_j\,\Delta\log p_{i,t-j}
++ \gamma\,\Delta\log w_{i,t-1} + u_{it},
+\qquad
+\Theta_{\mathrm{panel}} = \frac{\beta_0+\beta_1+\beta_2}{1-\gamma}.
+\]
+
+Frozen before retrieval, in `config/models.yml` under `dynamic_panel`:
+
+- **Primary** specification carries country *and* year effects; the **sensitivity** drops the year
+  effects. The two drivers are estimated separately and never pooled.
+- Estimation is bias-corrected LSDV. Uncorrected LSDV is reported beside it to show the size of the
+  correction, and only the corrected estimator is treated as substantive.
+- Inference is a circular moving-block bootstrap over time that resamples the complete
+  thirteen-country cross-section jointly, with block length four and 4,999 replications; block
+  lengths three and five are frozen sensitivity checks. Lags are rebuilt after concatenation and the
+  corrected model is re-estimated in every replication, so the interval is a percentile interval for
+  the nonlinear multiplier itself.
+- Driscoll--Kraay standard errors are a **secondary diagnostic** only. Their justification is
+  asymptotic in the time dimension, and roughly 28 effective years is not enough for them to replace
+  the bootstrap.
+- Reporting gates: |gamma| < 1, at least 25 effective years, a finite multiplier in at least 95% of
+  replications, at least 95% estimator convergence, no rank deficiency after the fixed effects, and
+  all 4,999 replications requested with the completed count reported. **A primary result that fails
+  any gate is ineligible** and is labelled as such rather than dropped.
+
+The bias correction addresses dynamic fixed-effects bias. It does not solve contemporaneous
+endogeneity between productivity and wages; the coefficient remains a reduced-form conditional
+association.
 
 ## Reliability-gated models
 

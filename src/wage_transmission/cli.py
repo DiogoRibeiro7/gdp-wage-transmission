@@ -43,6 +43,7 @@ from wage_transmission.data.source_queries import (
     source_queries_from_manifest,
 )
 from wage_transmission.decomposition import decompose_panel
+from wage_transmission.models.dynamic_panel import estimate_dynamic_panel_suite
 from wage_transmission.pipeline import analyse_country
 from wage_transmission.plots import plot_cumulative_decomposition, plot_decomposition_components
 from wage_transmission.publication import (
@@ -123,6 +124,39 @@ def analyse_panel(
         )
     else:
         typer.echo(f"Country robustness estimates written to {output} ({len(estimates)} countries)")
+
+
+@app.command("estimate-dynamic-panel")
+def estimate_dynamic_panel_command(
+    input_path: Path = typer.Option(..., "--input", exists=True, readable=True),
+    driver: str = typer.Option("productivity", "--driver"),
+    output: Path = typer.Option(..., "--output"),
+    models_config: Path = typer.Option(Path("config/models.yml"), "--models-config"),
+    publication_config: Path = typer.Option(Path("config/publication.yml"), "--publication-config"),
+) -> None:
+    """Estimate the frozen dynamic-panel hierarchy for one productivity driver.
+
+    The estimand is the cumulative multiplier from the same dynamic structure the country
+    models use, not a contemporaneous slope, and the two drivers are never pooled.
+    """
+    panel = pd.read_csv(input_path)
+    models = load_models_config(models_config)
+    publication = load_publication_config(publication_config)
+    suite = estimate_dynamic_panel_suite(
+        panel,
+        driver_column=driver,
+        config=models.dynamic_panel,
+        alpha=publication.alpha,
+    )
+    write_json(suite, output)
+    primary = suite.primary
+    status = "eligible" if primary.claim_eligible else "not eligible"
+    typer.echo(
+        f"Dynamic panel for {driver}: {len(suite.specifications)} specifications written to "
+        f"{output}. Primary corrected multiplier {primary.corrected_multiplier:.4f} "
+        f"[{primary.corrected_multiplier_ci[0]:.4f}, {primary.corrected_multiplier_ci[1]:.4f}] "
+        f"on {primary.nobs} observations across {primary.n_countries} countries ({status})."
+    )
 
 
 @app.command("download-oecd")
@@ -659,15 +693,25 @@ def build_publication_dossier_command(
         "productivity": results_root / "cross_country_per_hour.csv",
     }
     decomposition_summary = results_root / "portugal_decomposition" / "decomposition_summary.json"
+    dynamic_panel_results = {
+        "productivity_per_worker": results_root / "dynamic_panel_per_worker.json",
+        "productivity": results_root / "dynamic_panel_per_hour.json",
+    }
     required_paths = [*country_results.values(), *cross_country_results.values()]
     missing = [str(path) for path in required_paths if not path.is_file()]
     if missing:
         raise typer.BadParameter("Missing required empirical outputs: " + ", ".join(missing))
     decomposition = decomposition_summary if decomposition_summary.is_file() else None
+    dynamic_panel = (
+        dynamic_panel_results
+        if all(path.is_file() for path in dynamic_panel_results.values())
+        else None
+    )
     dossier = build_publication_dossier(
         country_results=country_results,
         cross_country_results=cross_country_results,
         decomposition_summary=decomposition,
+        dynamic_panel_results=dynamic_panel,
         specification_lock=specification_lock,
         publication_config=config,
         output_dir=output_dir,
