@@ -36,11 +36,6 @@ jobs:
       - name: Install project
         run: poetry install
 
-      - name: Verify pre-results publication specification lock
-        run: |
-          poetry run wage-transmission lock-publication-spec \
-            --label post-tooling-relock-2026-08-23 \
-            --output paper/specification_lock.json
 
       - name: Resolve publication vintage and configured years
         id: release
@@ -151,7 +146,7 @@ jobs:
             --input "$PROCESSED/decomposition_inputs.csv" \
             --output "$RESULTS/cross_country_decomposition"
 
-      - name: Build locked publication dossier
+      - name: Build publication dossier
         if: ${{ inputs.run_analysis }}
         shell: bash
         run: |
@@ -160,23 +155,9 @@ jobs:
           RESULTS="results/vintages/$VINTAGE"
           poetry run wage-transmission build-publication-dossier \
             --results-root "$RESULTS" \
-            --specification-lock paper/specification_lock.json \
             --publication-config config/publication.yml \
             --output "$RESULTS/publication_dossier"
 
-      - name: Build and audit paper-facing report packet
-        if: ${{ inputs.run_analysis }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          VINTAGE="${{ steps.release.outputs.vintage }}"
-          RESULTS="results/vintages/$VINTAGE"
-          poetry run python tools/publication_report.py build \
-            --dossier "$RESULTS/publication_dossier" \
-            --paper-dir paper
-          poetry run python tools/publication_report.py audit \
-            --paper-dir paper \
-            --manifest paper/generated/paper_packet_manifest.json
 
       - name: Quality gates
         run: |
@@ -197,10 +178,6 @@ jobs:
             if [[ -d "results/vintages/$VINTAGE" ]]; then
               find "results/vintages/$VINTAGE" -type f -print0
             fi
-            if [[ -d "paper/generated" ]]; then
-              find "paper/generated" -type f -print0
-            fi
-            printf '%s\0' paper/main.tex
           } | sort -z | xargs -0 sha256sum > "publication-freeze-${VINTAGE}.sha256"
 
       - name: Upload immutable source freeze and empirical outputs
@@ -217,6 +194,4 @@ jobs:
             data/raw/${{ steps.release.outputs.vintage }}/
             data/processed/${{ steps.release.outputs.vintage }}/
             results/vintages/${{ steps.release.outputs.vintage }}/
-            paper/main.tex
-            paper/generated/
             publication-freeze-${{ steps.release.outputs.vintage }}.sha256

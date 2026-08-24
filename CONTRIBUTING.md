@@ -48,10 +48,11 @@ constraints rather than conventions.
 2. **Raw snapshots are immutable.** The download layer writes source bytes unchanged, with the
    query URL, retrieval timestamp and SHA-256 digest recorded alongside. If an official series is
    revised upstream, add a new vintage; never rewrite an existing one.
-3. **Do not edit a specification lock to make a result fit.** `paper/specification_lock.json` and
-   `papers/*/analysis_lock.json` record what was fixed before results were seen. Changing one is
+3. **Do not retro-fit a specification to a result.** The publication hierarchy in
+   `config/publication.yml` records what was chosen before results were seen. Changing it is
    sometimes legitimate, but it must be argued for explicitly in the pull request, and a change
-   made after inspecting results is specification drift, not a fix.
+   made after inspecting results is specification drift, not a fix. Manuscripts and the
+   specification locks that bind them to a source freeze are maintained outside this repository.
 4. **Break dates are estimated, not assumed.** The structural-break and state-space models must
    not hard-code historical dates. Historical events belong in the interpretation of estimated
    regimes, not in their identification.
@@ -81,7 +82,7 @@ Tests must not hit the network. Mark anything that genuinely needs outbound acce
 ## Pull requests
 
 - Branch from `main`; keep one logical change per pull request.
-- Fill in the pull request template, especially the sections on empirical effect and locks.
+- Fill in the pull request template, especially the section on empirical effect.
 - Update `CHANGELOG.md` for anything user-facing. The changelog is organised by dated research
   revision rather than by semantic version alone, and records validation status for each.
 - Commit messages: a short imperative subject line, and a body explaining *why* when the reason is

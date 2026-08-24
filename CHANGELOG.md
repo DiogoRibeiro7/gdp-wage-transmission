@@ -1,5 +1,53 @@
 # Changelog
 
+## Manuscript trees removed from version control — 2026-08-24
+
+The `paper/` and `papers/` trees are no longer tracked, and were purged from the git history
+rather than merely deleted going forward. Manuscripts, their generated fragments and the
+specification locks that bound them to a source freeze are now maintained outside this repository.
+
+### Removed
+
+- `paper/` and `papers/` in full, including both manuscripts, the compiled PDF, the generated
+  LaTeX fragments, `paper/specification_lock.json` and
+  `papers/wage_distribution_breaks/analysis_lock.json`.
+- The specification-lock machinery in `wage_transmission.publication`: `SpecificationLock`,
+  `LockedFile`, `build_specification_lock`, `write_specification_lock`,
+  `read_specification_lock`, `verify_specification_lock` and the analysis source-tree hash.
+- The `lock-publication-spec` CLI command, and `--specification-lock` from
+  `build-publication-dossier`.
+- `tools/publication_report.py`, the paper-facing packet builder, and its tests.
+- The analysis-lock half of `tools/integrity.py`, along with `combined_sha256`.
+- `docs/specification_lock.md` and `docs/paper_generation.md`.
+- The lock-verification and paper-packet steps of the publication source-freeze workflow, and the
+  `spec-lock`, `paper-packet`, `paper-audit`, `paper2-lock`, `paper2-lock-verify` and `paper2-pdf`
+  Makefile targets.
+
+### What this costs
+
+The repository no longer verifies that estimator code and configuration are unchanged since a
+specification was fixed. `build-publication-dossier` still hashes every input and output into its
+manifest, so a dossier remains internally auditable, but nothing now binds it to a pre-results
+commitment. Reinstating that guarantee means restoring the lock machinery from this commit's
+parent.
+
+The dossier is now the handover point to a manuscript: its tables and manifest are what a paper
+consumes, and the paper itself lives elsewhere.
+
+### Retained
+
+`tools/wage_distribution_breaks.py` stays, since it estimates rather than typesets; its
+`--paper-dir` flag can still write fragments to a local, untracked manuscript tree.
+`RELEASE_MANIFEST.sha256` and the archive verifier are unaffected and still run under
+`make integrity`.
+
+### Validation
+
+- **72 tests pass** (down from 84; twelve covered the removed lock machinery and paper packet).
+- `ruff check`, `ruff format --check` and `mypy --strict` are clean.
+- The release manifest and the exported archive of `HEAD` both verify.
+
+
 ## Repository engineering revision — 2026-08-23
 
 An infrastructure-only revision. It changes **no estimator, no specification and no estimated

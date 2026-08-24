@@ -75,7 +75,7 @@ Run before tagging:
 
 ```bash
 make check          # ruff, ruff format, mypy, pytest
-make integrity      # release manifest, exported archive, Paper 2 analysis lock
+make integrity      # release manifest and exported archive
 ```
 
 `make integrity` includes `make release-archive`, which hashes what `git archive` actually exports
@@ -86,7 +86,6 @@ fail for whoever downloads the archive.
 
 and confirm:
 
-- [ ] `paper/specification_lock.json` verifies against the working tree.
 - [ ] The version is identical in `pyproject.toml`, `src/wage_transmission/version.py`,
       `CITATION.cff` and `.zenodo.json`. `tests/test_version_consistency.py` checks this.
 - [ ] `CHANGELOG.md` has an entry for the release, including its validation status.

@@ -31,6 +31,6 @@ results/figures/*
 results/tables/*
 !results/tables/.gitkeep
 
-# Paper-facing empirical fragments are generated from a verified publication dossier.
-paper/generated/*
-!paper/generated/.gitkeep
+# Manuscripts and their locks are kept out of version control entirely.
+paper/
+papers/

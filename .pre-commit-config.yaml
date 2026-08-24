@@ -9,8 +9,6 @@ default_language_version:
 exclude: |
   (?x)^(
     data/.*|
-    paper/generated/.*|
-    papers/[^/]+/generated/.*|
     RELEASE_MANIFEST\.sha256
   )$
 

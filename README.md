@@ -13,14 +13,13 @@ The primary country is **Portugal**. The code is designed from the beginning to 
 ## Contents
 
 - [Research question](#research-question)
-- [Two-paper structure](#two-paper-structure)
+- [Manuscripts](#manuscripts)
 - [Model stack](#model-stack)
 - [Data sources](#data-sources)
 - [Repository layout](#repository-layout)
 - [Frozen Portugal reference audit](#frozen-portugal-reference-audit)
 - [Installation](#installation)
 - [Quick start without network access](#quick-start-without-network-access)
-- [Pre-results publication lock](#pre-results-publication-lock)
 - [Publication source freeze](#publication-source-freeze)
 - [Download official data](#download-official-data)
 - [Core analysis](#core-analysis)
@@ -54,27 +53,22 @@ The repository asks:
 7. How much of wage growth can be decomposed into real GDP growth, labour-share changes, employment growth, and relative-price effects?
 
 
-## Two-paper structure
+## Manuscripts
 
-The repository now supports two related papers while sharing one data, provenance and validation
-layer:
+Two manuscripts draw on this repository: the GDP/productivity-to-wage transmission paper, and a
+second on wage-distribution compression and structural breaks, which reuses the 2002-2024
+Quadros de Pessoal wage-distribution panel and tests endogenous break dates separately from
+historically specified 2008/2009 breaks.
 
-- **Paper 1 — GDP/productivity and wage transmission.** The original manuscript remains under
-  [`paper/`](paper/). Its v0.6 pre-results specification lock and `src/wage_transmission` analysis
-  hash are unchanged.
-- **Paper 2 — Wage-distribution compression and structural breaks.** The second manuscript lives
-  under [`papers/wage_distribution_breaks/`](papers/wage_distribution_breaks/). It reuses the
-  existing 2002–2024 Quadros de Pessoal wage-distribution panel and tests endogenous break dates
-  separately from historically specified 2008/2009 breaks.
+Neither manuscript is kept in version control. The estimators, data layer and result artefacts
+that feed them are what this repository tracks; the LaTeX sources, generated fragments and the
+specification locks that bound them are maintained outside it.
 
-Paper 2 is explicitly **post-hoc/exploratory**, not preregistered, because the distribution series
-were inspected before its protocol was frozen. Its analysis lock prevents further specification
-drift from this point onward without pretending the earlier inspection did not occur.
-
-Current Paper 2 exploratory results select approximately **2006** for D10/D1 and D9/D1,
-**2013** for D10/D5, and **2014** for mean/median. The forced 2008 and 2009 models still show
-negative post-break slopes, so the GFC remains a historically meaningful candidate rather than the
-unique data-selected break.
+The second strand is explicitly **post-hoc/exploratory**, not preregistered: the distribution
+series were inspected before its protocol was fixed. Its current results select approximately
+**2006** for D10/D1 and D9/D1, **2013** for D10/D5, and **2014** for mean/median. Forced 2008
+and 2009 models still show negative post-break slopes, so the GFC remains a historically
+meaningful candidate rather than the unique data-selected break.
 
 ## Model stack
 
@@ -126,9 +120,6 @@ The download layer stores source extracts unchanged under `data/raw/` before can
 │   └── sample/
 ├── docs/
 ├── notebooks/
-├── paper/                         # Paper 1 (locked GDP–wage transmission)
-├── papers/
-│   └── wage_distribution_breaks/  # Paper 2
 ├── results/
 │   ├── figures/
 │   └── tables/
@@ -274,56 +265,6 @@ poetry run wage-transmission analyse \
   --output results/demo
 ```
 
-## Pre-results publication lock
-
-v0.6 fixes the publication hierarchy **before a live source-freeze result is promoted**. The lock
-binds `project.yml`, `models.yml`, `publication.yml`, the package version and the complete Python
-analysis source tree:
-
-```bash
-poetry run wage-transmission lock-publication-spec \
-  --label post-tooling-relock-2026-08-23 \
-  --output paper/specification_lock.json
-```
-
-The primary Portugal driver is `productivity_per_worker` (GDP per person employed), because it is
-denominator-matched to annual wages. GDP per hour remains the secondary productivity definition.
-The **cumulative distributed-lag transmission coefficient** is the primary inferential estimand.
-ECM, state-space, break, local-projection and asymmetry results remain supporting models and can only
-become publication-facing claims when their pre-specified reliability gates pass.
-
-After one source vintage is rebuilt and analysed, the publication dossier is generated mechanically:
-
-```bash
-poetry run wage-transmission build-publication-dossier \
-  --results-root results/vintages/2026-08-22 \
-  --specification-lock paper/specification_lock.json \
-  --output results/vintages/2026-08-22/publication_dossier
-```
-
-It writes `core_estimates.csv`, `reliability_gates.csv`, `cross_country_summary.csv`, the Portugal
-decomposition summary when available, a concise `results_summary.md`, and a checksummed
-`publication_manifest.json`. The manifest explicitly records `causal_claims_authorized: false`.
-See [`docs/specification_lock.md`](docs/specification_lock.md).
-
-The paper-facing layer is deliberately separate from the locked analysis package. Once the dossier
-exists, generate and audit the empirical LaTeX/Markdown fragments with:
-
-```bash
-poetry run python tools/publication_report.py build \
-  --dossier results/vintages/2026-08-22/publication_dossier \
-  --paper-dir paper
-
-poetry run python tools/publication_report.py audit \
-  --paper-dir paper \
-  --manifest paper/generated/paper_packet_manifest.json
-```
-
-The formatter verifies the dossier hashes, labels reliability-gated models explicitly as `eligible`
-or `not eligible`, hashes every generated fragment, and rejects hand-written LaTeX table environments
-outside `paper/generated/`. This is a reporting-only layer: it does not estimate models and does not
-change the v0.6 analysis-source hash. See [`docs/paper_generation.md`](docs/paper_generation.md).
-
 ## Publication source freeze
 
 Before downloading a publication vintage, export the exact request plan:
@@ -351,7 +292,7 @@ poetry run wage-transmission fetch-source-freeze \
 
 The fetcher stores the exact response bytes, retries only transient transport/HTTP failures, rejects obvious HTML/error payloads before storage, and reuses already verified snapshots without a second request. The audit also checks manifest metadata (URL, query id, dataset/flow/measure when present), so a self-consistent hash is not enough if the file belongs to a different source request.
 
-The GitHub Actions workflow performs the complete publication path on an internet-enabled runner: specification-lock verification → query manifest → immutable raw freeze → strict audit → offline panel reconstruction → Portugal/cross-country analyses → locked publication dossier → paper-packet generation/audit → Ruff/mypy/pytest → checksummed Actions artifact. See [`docs/github_source_freeze.md`](docs/github_source_freeze.md).
+The GitHub Actions workflow performs the complete publication path on an internet-enabled runner: query manifest → immutable raw freeze → strict audit → offline panel reconstruction → Portugal/cross-country analyses → publication dossier → Ruff/mypy/pytest → checksummed Actions artifact. See [`docs/github_source_freeze.md`](docs/github_source_freeze.md).
 
 On a network-enabled machine, downloads should use an explicit vintage directory:
 
@@ -517,9 +458,7 @@ Detailed notes live under [`docs/`](docs/):
 | [data_dictionary.md](docs/data_dictionary.md) | Canonical panel schema and variable definitions |
 | [source_vintages.md](docs/source_vintages.md) | Vintage layout, snapshot registry and revision handling |
 | [reproducibility.md](docs/reproducibility.md) | How to reproduce a published run end to end |
-| [specification_lock.md](docs/specification_lock.md) | What the pre-results lock binds, and how it is verified |
 | [github_source_freeze.md](docs/github_source_freeze.md) | Running the internet-enabled freeze workflow |
-| [paper_generation.md](docs/paper_generation.md) | Building the paper-facing report packet |
 | [portugal_empirical_audit.md](docs/portugal_empirical_audit.md) | Frozen Portugal reference audit |
 | [zenodo_archiving.md](docs/zenodo_archiving.md) | Minting a DOI for a release, and the release checklist |
 
@@ -552,8 +491,8 @@ remains subject to those providers' own terms of use.
 
 **v0.6** contains the complete core time-series stack, reliability guardrails, frozen Portugal reference audit, denominator-explicit OECD productivity drivers, exact Eurostat labour-share accounting decomposition, country-specific cross-country estimates with HAC uncertainty, and the source-vintage/revision layer.
 
-The publication hierarchy is now pre-registered inside the repository. The primary annual specification is GDP per person employed versus real annual wages, the cumulative distributed-lag coefficient is the primary inferential estimand, and flexible models are reliability-gated supporting evidence. `paper/specification_lock.json` binds these choices to the configuration files, package version and analysis source-tree hash before a live official source freeze is promoted.
+The publication hierarchy is fixed in configuration: the primary annual specification is GDP per person employed versus real annual wages, the cumulative distributed-lag coefficient is the primary inferential estimand, and flexible models are reliability-gated supporting evidence. Those choices live in `config/publication.yml`; the specification locks that previously bound them to a source freeze are maintained outside version control along with the manuscripts.
 
 The configured `2026-08-22` manifest still contains **63 official source queries**. Its bundled audit deliberately reports all 63 as missing because this local environment cannot perform the network fetches; the GitHub Actions workflow is the reproducible internet-enabled path for producing the untouched raw vintage, processed panels, empirical outputs and locked publication dossier.
 
-Validation for the current exploratory reporting revision is **67/67 tests passing**. The added annual-decomposition tests cover missing and complete `SAL_DC` paths, exact accounting closure, concept labelling and annual-input contracts; the earlier dossier/paper-integrity gates remain in the suite. Ruff (lint and format) and mypy in strict mode now run clean locally and in CI on Python 3.11, 3.12 and 3.13, in addition to the publication workflow's release gates.
+Validation is **72/72 tests passing**. The annual-decomposition tests cover missing and complete `SAL_DC` paths, exact accounting closure, concept labelling and annual-input contracts; the dossier reliability gates remain in the suite. Ruff (lint and format) and mypy in strict mode run clean locally and in CI on Python 3.11, 3.12 and 3.13, in addition to the publication workflow's release gates.

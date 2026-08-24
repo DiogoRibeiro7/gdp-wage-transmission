@@ -54,19 +54,13 @@ query manifest are not overwritten.
 
 The `--strict` gate exits non-zero unless every query in the manifest is present and verified.
 
-## Locked publication dossier (v0.6)
-
-Before any source request is made, the workflow verifies `paper/specification_lock.json`. The lock
-binds the project/model/publication configurations, package version and complete Python analysis
-source tree. If any estimator or locked configuration has changed, the workflow fails before
-fetching a publication vintage.
+## Publication dossier
 
 After the verified raw freeze is rebuilt and all empirical analyses complete, the workflow runs:
 
 ```bash
 poetry run wage-transmission build-publication-dossier \
   --results-root results/vintages/${VINTAGE} \
-  --specification-lock paper/specification_lock.json \
   --output results/vintages/${VINTAGE}/publication_dossier
 ```
 
@@ -74,9 +68,6 @@ The dossier contains the pre-specified primary coefficient and uncertainty, reli
 for flexible models, cross-country heterogeneity summaries, the accounting decomposition summary,
 and a manifest hashing all inputs and outputs. It does not authorize causal language.
 
-## Paper-facing packet
-
-After `build-publication-dossier`, the workflow runs `tools/publication_report.py build` and
-`tools/publication_report.py audit`. The formatter is outside the locked analysis package, so report
-formatting can evolve without changing the pre-results estimator hash. The uploaded artifact includes
-`paper/main.tex`, `paper/generated/`, and hashes for every generated fragment.
+Manuscript formatting is not part of this repository. The dossier is the handover point: its
+tables and manifest are what a manuscript consumes, and the manuscript itself is maintained
+outside version control.

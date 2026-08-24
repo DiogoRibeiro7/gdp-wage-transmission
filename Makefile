@@ -1,4 +1,4 @@
-.PHONY: help install hooks format format-check lint typecheck test coverage check build clean integrity release-manifest release-manifest-verify release-archive paper2-lock paper2-lock-verify demo spec-lock freeze-plan freeze-fetch freeze-audit snapshot-registry publication-gate publication-dossier paper-packet paper-audit paper2-breaks paper2-pdf
+.PHONY: help install hooks format format-check lint typecheck test coverage check build clean integrity release-manifest release-manifest-verify release-archive demo freeze-plan freeze-fetch freeze-audit snapshot-registry publication-gate publication-dossier wage-distribution-breaks
 
 # Default target: list the documented entry points.
 help:
@@ -40,7 +40,7 @@ clean: ## Remove build, cache and coverage artefacts
 
 REF ?= HEAD
 
-integrity: release-manifest-verify release-archive paper2-lock-verify ## Verify every recorded integrity artefact
+integrity: release-manifest-verify release-archive ## Verify every recorded integrity artefact
 
 release-manifest: ## Regenerate RELEASE_MANIFEST.sha256 over its resolved scope
 	poetry run python tools/integrity.py release-manifest write
@@ -51,19 +51,8 @@ release-manifest-verify: ## Check RELEASE_MANIFEST.sha256 against the working tr
 release-archive: ## Check that git's archive of REF matches the manifest it carries
 	poetry run python tools/integrity.py release-archive verify --ref $(REF)
 
-paper2-lock: ## Recompute the Paper 2 analysis-lock digests
-	poetry run python tools/integrity.py analysis-lock write
-
-paper2-lock-verify: ## Check the Paper 2 analysis lock against the working tree
-	poetry run python tools/integrity.py analysis-lock verify
-
 demo: ## Run the pipeline against the bundled synthetic sample
 	poetry run wage-transmission analyse --input data/sample/synthetic_portugal.csv --country PRT --output results/demo
-
-spec-lock:
-	poetry run wage-transmission lock-publication-spec \
-		--label post-tooling-relock-2026-08-23 \
-		--output paper/specification_lock.json
 
 freeze-plan:
 	@test -n "$(VINTAGE)" || (echo "Usage: make freeze-plan VINTAGE=YYYY-MM-DD" && exit 2)
@@ -102,29 +91,9 @@ publication-dossier:
 	@test -n "$(VINTAGE)" || (echo "Usage: make publication-dossier VINTAGE=YYYY-MM-DD" && exit 2)
 	poetry run wage-transmission build-publication-dossier \
 		--results-root results/vintages/$(VINTAGE) \
-		--specification-lock paper/specification_lock.json \
 		--output results/vintages/$(VINTAGE)/publication_dossier
 
-
-paper-packet:
-	@test -n "$(VINTAGE)" || (echo "Usage: make paper-packet VINTAGE=YYYY-MM-DD" && exit 2)
-	poetry run python tools/publication_report.py build \
-		--dossier results/vintages/$(VINTAGE)/publication_dossier \
-		--paper-dir paper
-
-
-paper-audit:
-	poetry run python tools/publication_report.py audit \
-		--paper-dir paper \
-		--manifest paper/generated/paper_packet_manifest.json
-
-
-paper2-breaks:
+wage-distribution-breaks:
 	PYTHONPATH=.:src poetry run python tools/wage_distribution_breaks.py \
 		--input results/exploratory_live/wage_distribution/portugal_wage_distribution_2002_2024.csv \
-		--output-dir results/exploratory_live/wage_distribution_breaks \
-		--paper-dir papers/wage_distribution_breaks
-
-
-paper2-pdf: paper2-breaks
-	cd papers/wage_distribution_breaks && pdflatex -interaction=nonstopmode -halt-on-error main.tex
+		--output-dir results/exploratory_live/wage_distribution_breaks

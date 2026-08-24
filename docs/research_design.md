@@ -102,7 +102,7 @@ The primary cross-country object is a table of separately estimated national coe
 Before a live official source vintage is promoted into publication evidence, the repository locks
 `project.yml`, `models.yml`, `publication.yml`, the package version and the complete Python analysis
 source tree. The primary estimand is therefore fixed before the publication source-freeze result is
-observed. See `docs/specification_lock.md`.
+observed. The publication hierarchy is recorded in `config/publication.yml`.
 
 The denominator-matched GDP-per-employed-person specification is primary; GDP per hour is the
 secondary productivity definition. The cumulative distributed-lag coefficient is the primary

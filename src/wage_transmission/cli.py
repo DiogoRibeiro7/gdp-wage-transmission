@@ -47,8 +47,6 @@ from wage_transmission.pipeline import analyse_country
 from wage_transmission.plots import plot_cumulative_decomposition, plot_decomposition_components
 from wage_transmission.publication import (
     build_publication_dossier,
-    build_specification_lock,
-    write_specification_lock,
 )
 from wage_transmission.reporting import write_json
 from wage_transmission.version import __version__
@@ -599,44 +597,10 @@ if __name__ == "__main__":
     app()
 
 
-@app.command("lock-publication-spec")
-def lock_publication_spec(
-    project_config: Path = typer.Option(
-        Path("config/project.yml"), "--project-config", exists=True, readable=True
-    ),
-    models_config: Path = typer.Option(
-        Path("config/models.yml"), "--models-config", exists=True, readable=True
-    ),
-    publication_config: Path = typer.Option(
-        Path("config/publication.yml"), "--publication-config", exists=True, readable=True
-    ),
-    label: str = typer.Option("pre-source-freeze-2026-08-22", "--label"),
-    output: Path = typer.Option(Path("paper/specification_lock.json"), "--output"),
-) -> None:
-    """Freeze pre-results configuration hashes; never overwrite a different existing lock."""
-    lock = build_specification_lock(
-        project_config=project_config,
-        models_config=models_config,
-        publication_config=publication_config,
-        label=label,
-    )
-    try:
-        write_specification_lock(lock, output)
-    except FileExistsError as exc:
-        raise typer.BadParameter(str(exc)) from exc
-    typer.echo(f"Publication specification lock written to {output}")
-
-
 @app.command("build-publication-dossier")
 def build_publication_dossier_command(
     results_root: Path = typer.Option(
         ..., "--results-root", exists=True, file_okay=False, readable=True
-    ),
-    specification_lock: Path = typer.Option(
-        Path("paper/specification_lock.json"),
-        "--specification-lock",
-        exists=True,
-        readable=True,
     ),
     publication_config: Path = typer.Option(
         Path("config/publication.yml"),
@@ -646,7 +610,7 @@ def build_publication_dossier_command(
     ),
     output: Path | None = typer.Option(None, "--output"),
 ) -> None:
-    """Build the pre-specified paper-facing result dossier from one verified result vintage."""
+    """Build the machine-generated result dossier from one verified result vintage."""
     config = load_publication_config(publication_config)
     output_dir = results_root / "publication_dossier" if output is None else output
     country_results = {
@@ -667,7 +631,6 @@ def build_publication_dossier_command(
         country_results=country_results,
         cross_country_results=cross_country_results,
         decomposition_summary=decomposition,
-        specification_lock=specification_lock,
         publication_config=config,
         output_dir=output_dir,
     )

@@ -8,7 +8,6 @@
 - [ ] New estimator, diagnostic or data source
 - [ ] Refactor or tooling change with no effect on results
 - [ ] Documentation
-- [ ] Manuscript or publication artefact
 
 ## Effect on empirical output
 
@@ -19,12 +18,11 @@
 
 <!-- If results change, describe which series, which specification, and by how much. -->
 
-## Specification locks
+## Specification
 
-- [ ] No locked specification (`paper/specification_lock.json`,
-      `papers/*/analysis_lock.json`) is modified.
-- [ ] A lock is modified, and the PR explains why the change is legitimate
-      rather than specification drift.
+- [ ] The publication hierarchy in `config/publication.yml` is unchanged.
+- [ ] It is changed, and the PR explains why that is legitimate rather than
+      specification drift.
 
 ## Checklist
 

@@ -4,15 +4,10 @@ import json
 from pathlib import Path
 
 import pandas as pd
-import pytest
 
 from wage_transmission.config import load_publication_config
 from wage_transmission.publication import (
     build_publication_dossier,
-    build_specification_lock,
-    read_specification_lock,
-    verify_specification_lock,
-    write_specification_lock,
 )
 from wage_transmission.reporting import write_json
 
@@ -101,99 +96,9 @@ def test_publication_config_loads() -> None:
 
 def test_hashed_artefacts_are_written_with_lf_only(tmp_path: Path) -> None:
     """Artefact bytes are hashed, so they must not depend on the writing platform."""
-    project = tmp_path / "project.yml"
-    models = tmp_path / "models.yml"
-    publication = tmp_path / "publication.yml"
-    project.write_text("a: 1\n", encoding="utf-8")
-    models.write_text("b: 2\n", encoding="utf-8")
-    publication.write_text("c: 3\n", encoding="utf-8")
-    lock = build_specification_lock(
-        project_config=project,
-        models_config=models,
-        publication_config=publication,
-        label="lf-only",
-    )
-    lock_path = tmp_path / "lock.json"
-    write_specification_lock(lock, lock_path)
-    assert b"\r\n" not in lock_path.read_bytes()
-
     result_path = tmp_path / "result.json"
     write_json({"estimate": 0.5, "segments": [1, 2]}, result_path)
     assert b"\r\n" not in result_path.read_bytes()
-
-
-def test_specification_lock_records_posix_paths(tmp_path: Path) -> None:
-    """A lock written on Windows must stay verifiable on POSIX CI, and vice versa."""
-    project = tmp_path / "nested" / "project.yml"
-    models = tmp_path / "nested" / "models.yml"
-    publication = tmp_path / "nested" / "publication.yml"
-    project.parent.mkdir(parents=True)
-    project.write_text("a: 1\n", encoding="utf-8")
-    models.write_text("b: 2\n", encoding="utf-8")
-    publication.write_text("c: 3\n", encoding="utf-8")
-    lock = build_specification_lock(
-        project_config=project,
-        models_config=models,
-        publication_config=publication,
-        label="posix-paths",
-    )
-    recorded = [
-        lock.analysis_code_root,
-        lock.project_config.path,
-        lock.models_config.path,
-        lock.publication_config.path,
-    ]
-    assert all("\\" not in path for path in recorded)
-    assert lock.analysis_code_root == "src/wage_transmission"
-
-
-def test_specification_lock_detects_config_change(tmp_path: Path) -> None:
-    project = tmp_path / "project.yml"
-    models = tmp_path / "models.yml"
-    publication = tmp_path / "publication.yml"
-    project.write_text("a: 1\n", encoding="utf-8")
-    models.write_text("b: 2\n", encoding="utf-8")
-    publication.write_text("c: 3\n", encoding="utf-8")
-    lock = build_specification_lock(
-        project_config=project,
-        models_config=models,
-        publication_config=publication,
-        label="before-results",
-    )
-    output = tmp_path / "lock.json"
-    write_specification_lock(lock, output)
-    loaded = read_specification_lock(output)
-    verify_specification_lock(loaded, root=Path("."))
-    models.write_text("b: 9\n", encoding="utf-8")
-    with pytest.raises(ValueError, match="hash_mismatch"):
-        verify_specification_lock(loaded, root=Path("."))
-
-
-def test_specification_lock_detects_analysis_code_change(tmp_path: Path) -> None:
-    project = tmp_path / "project.yml"
-    models = tmp_path / "models.yml"
-    publication = tmp_path / "publication.yml"
-    code_root = tmp_path / "analysis_code"
-    code_root.mkdir()
-    code_file = code_root / "model.py"
-    project.write_text("a: 1\n", encoding="utf-8")
-    models.write_text("b: 2\n", encoding="utf-8")
-    publication.write_text("c: 3\n", encoding="utf-8")
-    code_file.write_text("VALUE = 1\n", encoding="utf-8")
-    lock = build_specification_lock(
-        project_config=project,
-        models_config=models,
-        publication_config=publication,
-        label="before-results",
-        analysis_code_root=code_root,
-    )
-    output = tmp_path / "lock.json"
-    write_specification_lock(lock, output)
-    loaded = read_specification_lock(output)
-    verify_specification_lock(loaded, root=Path("."))
-    code_file.write_text("VALUE = 2\n", encoding="utf-8")
-    with pytest.raises(ValueError, match="code_hash_mismatch"):
-        verify_specification_lock(loaded, root=Path("."))
 
 
 def test_publication_dossier_enforces_reliability_gates(tmp_path: Path) -> None:
@@ -205,15 +110,6 @@ def test_publication_dossier_enforces_reliability_gates(tmp_path: Path) -> None:
     publication_file.write_text(
         Path("config/publication.yml").read_text(encoding="utf-8"), encoding="utf-8"
     )
-    lock = build_specification_lock(
-        project_config=project,
-        models_config=models,
-        publication_config=publication_file,
-        label="before-results",
-    )
-    lock_path = tmp_path / "specification_lock.json"
-    write_specification_lock(lock, lock_path)
-
     worker = tmp_path / "worker.json"
     hour = tmp_path / "hour.json"
     _write_model_result(worker, estimate=0.6, cointegrated=False)
@@ -234,7 +130,6 @@ def test_publication_dossier_enforces_reliability_gates(tmp_path: Path) -> None:
             "productivity": hour_cross,
         },
         decomposition_summary=None,
-        specification_lock=lock_path,
         publication_config=config,
         output_dir=tmp_path / "dossier",
     )
