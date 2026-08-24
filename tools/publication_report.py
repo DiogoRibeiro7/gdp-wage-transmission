@@ -242,31 +242,151 @@ def _core_table(core: pd.DataFrame) -> str:
     )
 
 
-def _reliability_table(reliability: pd.DataFrame) -> str:
+MODEL_LABELS = {
+    "ecm_long_run": "Error-correction long run",
+    "state_space_latest": "State-space, latest slope",
+    "structural_breaks": "Structural breaks",
+    "asymmetry": "Asymmetry (expansion vs contraction)",
+    "local_projections": "Local projections",
+}
+
+GATE_LABELS = {
+    "unsupported_without_cointegration": r"Cointegration unsupported at 5\%",
+    "latest_slope_imprecise": "Latest slope not distinguishable from zero",
+    "small_regime_segments": "Regime segments below interpretation threshold",
+    "underpowered_shock_balance": "Too few shocks of the rarer sign",
+    "long_horizons_exploratory": "Long horizons below effective sample",
+}
+
+
+def _model_estimate(core: pd.DataFrame, driver: str, model: str) -> str:
+    """The estimate behind a gate row, so a reader can see what was gated."""
+    matched = core.loc[core["driver"] == driver]
+    if matched.empty:
+        return "---"
+    row = matched.iloc[0]
+    if model == "ecm_long_run":
+        return _fmt_float(row.get("ecm_long_run_elasticity"))
+    if model == "state_space_latest":
+        estimate = _fmt_float(row.get("state_space_latest"))
+        error = _fmt_float(row.get("state_space_latest_std_error"))
+        return f"{estimate} ({error})"
+    if model == "structural_breaks":
+        years = str(row.get("structural_break_years") or "").replace(";", ", ")
+        return _escape_latex(years) if years else "none"
+    if model == "asymmetry":
+        positive = _fmt_float(row.get("asymmetry_positive_cumulative"))
+        negative = _fmt_float(row.get("asymmetry_negative_cumulative"))
+        return f"{positive} / {negative}"
+    if model == "local_projections":
+        horizons = str(row.get("supported_local_projection_horizons") or "").replace(";", ", ")
+        return _escape_latex(f"h = {horizons}") if horizons else "---"
+    return "---"
+
+
+def _reliability_table(reliability: pd.DataFrame, core: pd.DataFrame) -> str:
     required = {"driver", "model", "claim_eligible", "policy", "reason"}
     missing = required.difference(reliability.columns)
     if missing:
         raise ValueError(f"reliability_gates.csv missing columns: {sorted(missing)}")
     rows: list[str] = []
     for _, row in reliability.iterrows():
+        driver = str(row["driver"])
+        model = str(row["model"])
         eligible = "eligible" if _bool_value(row["claim_eligible"]) else "not eligible"
+        reason = str(row["reason"])
         rows.append(
-            "{} & {} & {} & {} \\\\".format(
-                _escape_latex(_driver_label(str(row["driver"]))),
-                _escape_latex(str(row["model"])),
+            "{} & {} & {} & {} & {} \\\\".format(
+                _escape_latex(_driver_label(driver)),
+                _escape_latex(MODEL_LABELS.get(model, model.replace("_", " "))),
+                _model_estimate(core, driver, model),
                 _escape_latex(eligible),
-                _escape_latex(str(row["reason"])),
+                GATE_LABELS.get(reason, _escape_latex(reason)),
             )
         )
     return _table_wrapper(
-        caption="Reliability gates for supporting models.",
+        caption="Supporting models, their estimates, and their pre-specified reliability gates.",
         label="tab:reliability-gates",
-        columns="llll",
-        header="Driver & Model & Claim status & Gate result",
+        columns="lllll",
+        header="Driver & Model & Estimate & Claim status & Gate result",
         rows=rows,
         note=(
-            "A supporting estimate may be discussed substantively only when its pre-specified reliability gate is eligible. "
-            "Non-eligible results remain visible rather than being dropped."
+            "A supporting estimate may be discussed substantively only when its pre-specified "
+            "reliability gate is eligible. Non-eligible estimates are shown rather than dropped, "
+            "so a reader can see what was gated and why. State-space entries report the latest "
+            "slope with its standard error; asymmetry reports the positive and negative "
+            "cumulative responses; breaks report the selected years."
+        ),
+    )
+
+
+def _country_estimates_table(cross: pd.DataFrame, dossier_dir: Path) -> str | None:
+    """Render every country-specific estimate, not merely their summary.
+
+    The surrounding text calls the country-specific estimates the primary cross-country object,
+    so publishing only a median and a random-effects summary would contradict it. The estimates
+    are read from the path the dossier recorded, and its digest is checked, so this table is as
+    traceable as the summary it accompanies.
+    """
+    if "country_estimates_path" not in cross.columns:
+        return None
+    primary = cross.loc[cross["driver"] == "productivity_per_worker"]
+    if primary.empty:
+        return None
+    row = primary.iloc[0]
+    path = Path(str(row["country_estimates_path"]))
+    if not path.is_file():
+        path = dossier_dir / path.name
+    if not path.is_file():
+        return None
+
+    recorded = str(row.get("country_estimates_sha256") or "")
+    if recorded and sha256_file(path) != recorded:
+        raise ValueError(
+            f"Country estimates at {path} do not match the digest recorded in the dossier. "
+            "The table would not correspond to the verified run."
+        )
+
+    estimates = pd.read_csv(path)
+    needed = {"country", "distributed_lag_cumulative", "distributed_lag_cumulative_se", "nobs"}
+    missing = needed.difference(estimates.columns)
+    if missing:
+        raise ValueError(f"Country estimates missing columns: {sorted(missing)}")
+
+    estimates = estimates.sort_values("distributed_lag_cumulative")
+    rows: list[str] = []
+    for _, item in estimates.iterrows():
+        estimate = float(item["distributed_lag_cumulative"])
+        error = float(item["distributed_lag_cumulative_se"])
+        low, high = estimate - 1.96 * error, estimate + 1.96 * error
+        country = _escape_latex(str(item["country"]))
+        if str(item["country"]) == "PRT":
+            country = r"\textbf{PRT}"
+        rows.append(
+            "{} & {} & {} & {} & [{}, {}] \\\\".format(
+                country,
+                int(item["nobs"]),
+                _fmt_float(estimate),
+                _fmt_float(error),
+                _fmt_float(low),
+                _fmt_float(high),
+            )
+        )
+
+    return _table_wrapper(
+        caption="Country-specific cumulative transmission, GDP per person employed.",
+        label="tab:country-estimates",
+        columns="lrrrr",
+        header=r"Country & $n$ & Cumulative & HAC SE & 95\% CI",
+        rows=rows,
+        note=(
+            "Each row is the same pre-specified specification estimated separately on one "
+            "country. These estimates are the primary cross-country object; the summary in "
+            "Table~\\ref{tab:cross-country} is secondary and should be read together with the "
+            "heterogeneity statistic. Intervals are normal approximations from the HAC standard "
+            "error. Country estimates over a common period are not independent, since countries "
+            "share global and European shocks, so a summary treating them as independent may "
+            "understate uncertainty."
         ),
     )
 
@@ -309,58 +429,55 @@ def _cross_country_table(cross: pd.DataFrame) -> str:
 
 
 def _decomposition_table(decomposition: pd.DataFrame) -> str:
+    """Render the accounting components.
+
+    The component column names must match what the dossier writes. Earlier this function
+    filtered to whichever recognised columns happened to be present, so a rename upstream
+    degraded the table to country, years and residual without any error -- a caption promising
+    a decomposition above a table containing none. Missing components now raise.
+    """
     if decomposition.empty:
         return "% AUTO-GENERATED. No decomposition rows were available.\n"
-    display_columns = [
-        column
-        for column in (
-            "country",
-            "start_year",
-            "end_year",
-            "cumulative_real_wage_growth",
-            "cumulative_real_gdp_growth",
-            "cumulative_labour_share_change",
-            "cumulative_employee_growth",
-            "cumulative_relative_price_effect",
-            "max_abs_identity_residual",
-        )
-        if column in decomposition.columns
-    ]
-    if not display_columns:
-        raise ValueError("decomposition_summary.csv has no recognized publication columns.")
-    header_labels = {
-        "country": "Country",
-        "start_year": "Start",
-        "end_year": "End",
-        "cumulative_real_wage_growth": "Real wage",
-        "cumulative_real_gdp_growth": "Real GDP",
-        "cumulative_labour_share_change": "$\\Delta$ labour share",
-        "cumulative_employee_growth": "Employees",
-        "cumulative_relative_price_effect": "Price wedge",
-        "max_abs_identity_residual": "Max residual",
+
+    components = {
+        "real_gdp_log_contribution": "Real GDP",
+        "labour_share_log_contribution": r"$\Delta$ labour share",
+        "employment_log_contribution": "Employees",
+        "relative_price_log_contribution": "Price wedge",
     }
+    required = {"country", "start_year", "end_year", "observed_real_wage_log_change", *components}
+    missing = required.difference(decomposition.columns)
+    if missing:
+        raise ValueError(
+            "decomposition_summary.csv is missing publication columns: "
+            f"{sorted(missing)}. The dossier schema and this formatter have drifted apart; "
+            "a decomposition table without its components must not be published."
+        )
+
     rows: list[str] = []
     for _, row in decomposition.iterrows():
-        values: list[str] = []
-        for column in display_columns:
-            value = row[column]
-            if column == "country":
-                values.append(_escape_latex(value))
-            elif column in {"start_year", "end_year"}:
-                values.append(str(int(value)))
-            else:
-                values.append(_fmt_float(value, 4))
-        rows.append(" & ".join(values) + r" \\")
-    columns = "l" + "r" * (len(display_columns) - 1)
+        cells = [
+            _escape_latex(str(row["country"])),
+            _escape_latex(f"{int(row['start_year'])}--{int(row['end_year'])}"),
+            _fmt_float(row["observed_real_wage_log_change"]),
+        ]
+        cells.extend(_fmt_float(row[column]) for column in components)
+        residual = row.get("max_abs_identity_residual")
+        cells.append("$<10^{-9}$" if float(residual or 0.0) < 1e-9 else _fmt_float(residual, 2))
+        rows.append(" & ".join(cells) + " \\\\")
+
+    header = "Country & Period & Observed & " + " & ".join(components.values()) + " & Residual"
     return _table_wrapper(
-        caption="Accounting decomposition of real wage growth.",
+        caption="Accounting decomposition of real compensation per employee (log points).",
         label="tab:decomposition",
-        columns=columns,
-        header=" & ".join(header_labels[column] for column in display_columns),
+        columns="ll" + "r" * (len(components) + 2),
+        header=header,
         rows=rows,
         note=(
-            "The decomposition is an accounting identity. Components describe where aggregate wage growth is accounted for; "
-            "they are not interpreted as causal effects."
+            "The decomposition is an exact accounting identity: the components sum to the observed "
+            "change, and the residual reports the closure error. Components describe where wage "
+            "growth is accounted for; they are not causal effects. A negative employee "
+            "contribution means a growing wage bill divided among more people."
         ),
     )
 
@@ -476,8 +593,16 @@ def build_paper_packet(*, dossier_dir: Path, paper_dir: Path) -> PaperPacket:
         generated / "results_primary.tex", _primary_results_text(core, cross, reliability)
     )
     core_table = _write(generated / "table_core_estimates.tex", _core_table(core))
-    reliability_table = _write(generated / "table_reliability.tex", _reliability_table(reliability))
+    reliability_table = _write(
+        generated / "table_reliability.tex", _reliability_table(reliability, core)
+    )
     cross_table = _write(generated / "table_cross_country.tex", _cross_country_table(cross))
+    # Optional, like the decomposition table: a dossier need not record a path to the
+    # country-level estimates. When it does, the table is written and bound into the
+    # manifest; when it does not, main.tex falls through its IfFileExists guard.
+    country_table = _country_estimates_table(cross, dossier_dir)
+    if country_table is not None:
+        _write(generated / "table_country_estimates.tex", country_table)
     markdown_summary = _write(
         generated / "results_summary.md", _markdown_summary(core, cross, reliability)
     )
