@@ -1,5 +1,43 @@
 # Changelog
 
+## Specification locked before the first source freeze — 2026-08-24
+
+A specification lock was written immediately before the first publication source freeze was
+requested. The artefact lives at `paper/specification_lock.json`, which is untracked, so its
+digests are recorded here instead: this makes the lock auditable from the repository without
+publishing the manuscript tree.
+
+| Field | Value |
+| --- | --- |
+| Label | `pre-source-freeze-2026-08-24` |
+| Package version | 0.7.1 |
+| `analysis_code_sha256` (`src/wage_transmission`) | `7018759ff13c55949733b8ace9840ef2d2aa25fc24308f6771a53fd496ca6b20` |
+| `config/publication.yml` | `aa745bf7d490cee24f679d7682fa51dbc8c657040d53b649c2db3d7d01a93554` |
+| `config/project.yml` | `1586d98cf6598bc3f7ff302f6885c41e215e9365dbf466360def76c31443f848` |
+| `config/models.yml` | `c3d925c1601d56fc467cb60a9cb6d6dbcbaef23ce1e0d4b18799e0a07582201a` |
+
+### What this lock does and does not claim
+
+The publication and project configuration digests are **byte-identical** to those in the original
+`pre-source-freeze-2026-08-22` lock, and `git log` shows `config/publication.yml` unchanged since
+the initial commit. The primary specification — GDP per person employed against real annual
+wages, with the cumulative distributed-lag coefficient as the primary estimand — therefore
+provably predates every result anyone has seen.
+
+Two things this lock does **not** claim. `config/models.yml` differs from the original, because
+0.7.0 added the `inference` block governing bootstrap replications; that is an addition of
+resampling settings, not a change to any existing estimator parameter. And the analysis source
+tree has changed substantially since 0.6.0, since 0.7.0 added the break test, the bootstrap bands
+and the panel estimator.
+
+Development results have been seen: the frozen Portugal reference extract, which the repository
+labels a transcription rather than a publication-grade source, produces a cumulative transmission
+estimate of -0.61 with a standard error of 0.71, no supported cointegration, and no detected
+break. Those results informed nothing in the locked specification, which is unchanged, but the
+honest statement is that this lock precedes the **publication vintage**, not that it precedes all
+observation.
+
+
 ## Specification-lock machinery restored — 2026-08-24
 
 Reverses the code removal in 0.7.0 while keeping the outcome that was actually wanted: the
