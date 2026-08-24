@@ -5,8 +5,9 @@ abstract: >-
   A reproducible empirical research repository for studying how economic growth and labour
   productivity transmit into real wages, how quickly that transmission occurs, and whether the
   relationship changes over time. The primary country is Portugal, with cross-country robustness
-  analysis. Estimated break dates are searched for rather than assumed, and every published number
-  is bound to a source freeze and a specification lock.
+  analysis. Estimated break dates are searched for rather than assumed and tested for rather than
+  imposed, uncertainty is reported by block bootstrap rather than by asymptotic approximation
+  alone, and every published number is traceable to a frozen source snapshot.
 type: software
 authors:
   - family-names: "Ribeiro"
@@ -20,10 +21,7 @@ doi: 10.5281/zenodo.22080269
 identifiers:
   - type: doi
     value: 10.5281/zenodo.22080269
-    description: Concept DOI resolving to all versions
-  - type: doi
-    value: 10.5281/zenodo.22080270
-    description: Version DOI for release 0.7.1
+    description: Concept DOI covering all versions; cite this for any version
 repository-code: "https://github.com/DiogoRibeiro7/gdp-wage-transmission"
 url: "https://github.com/DiogoRibeiro7/gdp-wage-transmission"
 keywords:

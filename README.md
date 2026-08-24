@@ -505,9 +505,10 @@ Please also read the [code of conduct](CODE_OF_CONDUCT.md). Security-relevant re
 
 ## Citation
 
-Archived on Zenodo. Cite the **concept DOI** [10.5281/zenodo.22080269](https://doi.org/10.5281/zenodo.22080269) for the software in
-general; it always resolves to the newest version. Cite a **version DOI** in a paper, so the
-reference never moves: v0.7.1 is [10.5281/zenodo.22080270](https://doi.org/10.5281/zenodo.22080270).
+Archived on Zenodo. Cite [10.5281/zenodo.22080269](https://doi.org/10.5281/zenodo.22080269) — this is the
+**concept DOI**, which covers all versions and always resolves to the newest one. Use it
+everywhere, including in papers; per-version DOIs exist on Zenodo but are not the citation
+this project asks for.
 
 If you use this software, cite it through [CITATION.cff](CITATION.cff), together with the study
 release used for the data snapshot. GitHub renders a ready-made citation from that file under

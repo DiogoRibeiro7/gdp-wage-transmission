@@ -3,12 +3,13 @@
 Zenodo mints a **Digital Object Identifier (DOI)** for an archived snapshot of this repository, so a
 paper can cite the exact code and frozen inputs that produced its numbers.
 
-Zenodo issues two DOIs:
+Zenodo issues two kinds of DOI: a **concept DOI** covering all versions, and a **version DOI**
+for each archived release.
 
-- a **concept DOI**, which always resolves to the newest version — cite this in prose and put it in
-  the README badge;
-- a **version DOI**, which resolves to one specific archived release — cite this in a paper, because
-  it never changes.
+**This project cites the concept DOI, always.** It is what the README badge, `CITATION.cff` and
+any paper should use. Version DOIs still exist on Zenodo and are reachable from the record, but
+they are not the citation this project asks for: a reader who follows the concept DOI reaches the
+newest version and can navigate to any specific one from there.
 
 ## The route this project uses
 
@@ -35,7 +36,7 @@ Once, to link the accounts:
 Then, for every release:
 
 1. Work through the release checklist below.
-2. Publish a GitHub release: `gh release create v0.7.0 --title "v0.7.0" --notes-file <notes>`.
+2. Publish a GitHub release: `gh release create v0.7.1 --title "v0.7.1" --notes-file <notes>`.
 3. Zenodo receives the webhook, archives the source tarball, and mints the DOI within a few minutes.
 4. Copy the concept DOI into the README badge and `CITATION.cff`.
 
@@ -52,9 +53,9 @@ through **New version** on the existing record, which preserves the concept DOI.
 2. Build a source archive from the tag, so the upload contains exactly the committed tree:
 
    ```bash
-   git archive --format=tar.gz --prefix=gdp-wage-transmission-0.7.0/ \
-     -o gdp-wage-transmission-0.7.0.tar.gz v0.7.0
-   sha256sum gdp-wage-transmission-0.7.0.tar.gz
+   git archive --format=tar.gz --prefix=gdp-wage-transmission-0.7.1/ \
+     -o gdp-wage-transmission-0.7.1.tar.gz v0.7.1
+   sha256sum gdp-wage-transmission-0.7.1.tar.gz
    ```
 
 3. Upload it at [zenodo.org/uploads/new](https://zenodo.org/uploads/new), then copy the metadata
@@ -103,8 +104,8 @@ and confirm:
 Anyone can check that a Zenodo archive matches what this repository recorded:
 
 ```bash
-tar -xzf gdp-wage-transmission-0.7.0.tar.gz
-cd gdp-wage-transmission-0.7.0
+tar -xzf gdp-wage-transmission-0.7.1.tar.gz
+cd gdp-wage-transmission-0.7.1
 poetry run python tools/integrity.py release-manifest verify
 ```
 
@@ -113,15 +114,14 @@ instance — are reported as missing rather than as mismatches. Any *mismatch* m
 bytes differ from the bytes the manifest recorded, and the archive should not be trusted as the
 source of a published number.
 
-## The DOIs in use
+## The DOI in use
 
-| DOI | Resolves to |
-| --- | --- |
-| [10.5281/zenodo.22080269](https://doi.org/10.5281/zenodo.22080269) | Concept: always the newest version. Cite in prose and in the README badge. |
-| [10.5281/zenodo.22080270](https://doi.org/10.5281/zenodo.22080270) | Version 0.7.1. Cite in a paper, since it never moves. |
+[10.5281/zenodo.22080269](https://doi.org/10.5281/zenodo.22080269) — the concept DOI, covering all versions.
 
-Both are recorded in `CITATION.cff`, so GitHub's **Cite this repository** panel offers them.
+It is recorded in `CITATION.cff`, so GitHub's **Cite this repository** panel offers it, and in the
+README badge. Nothing needs updating when a new version is released: the concept DOI already
+points at it.
 
-A DOI cannot appear in the release it identifies: Zenodo mints it only after the release is
-published, so each archive carries the identifier of its predecessor at best. Adding the new DOI
-to `CITATION.cff` after a release, as here, is the normal sequence rather than an oversight.
+A DOI cannot appear inside the release it identifies, since Zenodo mints the record only after the
+release is published. Citing the concept DOI sidesteps that entirely, because it does not change
+from one release to the next.
