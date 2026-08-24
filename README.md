@@ -1,6 +1,7 @@
 # GDP–Wage Transmission
 
 [![CI](https://github.com/DiogoRibeiro7/gdp-wage-transmission/actions/workflows/ci.yml/badge.svg)](https://github.com/DiogoRibeiro7/gdp-wage-transmission/actions/workflows/ci.yml)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22080269.svg)](https://doi.org/10.5281/zenodo.22080269)
 [![Python 3.11–3.13](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Ruff](https://img.shields.io/badge/lint-ruff-261230.svg)](https://github.com/astral-sh/ruff)
@@ -503,6 +504,10 @@ Please also read the [code of conduct](CODE_OF_CONDUCT.md). Security-relevant re
 [SECURITY.md](SECURITY.md); data and reproducibility problems have their own issue template.
 
 ## Citation
+
+Archived on Zenodo. Cite the **concept DOI** [10.5281/zenodo.22080269](https://doi.org/10.5281/zenodo.22080269) for the software in
+general; it always resolves to the newest version. Cite a **version DOI** in a paper, so the
+reference never moves: v0.7.1 is [10.5281/zenodo.22080270](https://doi.org/10.5281/zenodo.22080270).
 
 If you use this software, cite it through [CITATION.cff](CITATION.cff), together with the study
 release used for the data snapshot. GitHub renders a ready-made citation from that file under

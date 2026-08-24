@@ -113,20 +113,15 @@ instance — are reported as missing rather than as mismatches. Any *mismatch* m
 bytes differ from the bytes the manifest recorded, and the archive should not be trusted as the
 source of a published number.
 
-## After the first DOI exists
+## The DOIs in use
 
-Add the concept DOI badge to the top of `README.md`:
+| DOI | Resolves to |
+| --- | --- |
+| [10.5281/zenodo.22080269](https://doi.org/10.5281/zenodo.22080269) | Concept: always the newest version. Cite in prose and in the README badge. |
+| [10.5281/zenodo.22080270](https://doi.org/10.5281/zenodo.22080270) | Version 0.7.1. Cite in a paper, since it never moves. |
 
-```markdown
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX)
-```
+Both are recorded in `CITATION.cff`, so GitHub's **Cite this repository** panel offers them.
 
-and the identifier to `CITATION.cff`, so GitHub's **Cite this repository** panel offers it:
-
-```yaml
-doi: 10.5281/zenodo.XXXXXXX
-identifiers:
-  - type: doi
-    value: 10.5281/zenodo.XXXXXXX
-    description: Concept DOI for all versions
-```
+A DOI cannot appear in the release it identifies: Zenodo mints it only after the release is
+published, so each archive carries the identifier of its predecessor at best. Adding the new DOI
+to `CITATION.cff` after a release, as here, is the normal sequence rather than an oversight.

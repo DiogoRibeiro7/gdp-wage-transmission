@@ -16,6 +16,14 @@ authors:
 version: 0.7.1
 date-released: 2026-08-24
 license: MIT
+doi: 10.5281/zenodo.22080269
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.22080269
+    description: Concept DOI resolving to all versions
+  - type: doi
+    value: 10.5281/zenodo.22080270
+    description: Version DOI for release 0.7.1
 repository-code: "https://github.com/DiogoRibeiro7/gdp-wage-transmission"
 url: "https://github.com/DiogoRibeiro7/gdp-wage-transmission"
 keywords:
