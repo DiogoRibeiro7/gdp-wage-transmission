@@ -12,12 +12,17 @@ Zenodo issues two DOIs:
 
 ## The route this project uses
 
-Zenodo's GitHub integration can only see **public** repositories. This repository is private, so
-releases are deposited **manually** (Route B), as **restricted-access** records: the metadata and
-the DOI are public and citable, while the archived files are released to requesters at the
-depositor's discretion, and openly once the corresponding papers are published.
+The repository is public, so Zenodo's GitHub integration applies: publishing a GitHub
+Release archives the source tarball and mints a DOI automatically, with no manual upload.
+Records are **open access**, matching the visibility of the code itself.
 
-Route A is documented for the point at which the repository becomes public.
+Route B below is retained for the case where a deposit must contain something the public
+repository does not -- a frozen data vintage, for instance -- since the webhook only ever
+archives what `git archive` exports.
+
+One ordering constraint matters: Zenodo only archives releases published **after** the
+repository switch is turned on. Enabling the integration does not retroactively capture an
+existing release, so link the account first and publish the release second.
 
 ## Route A — GitHub integration (public repository)
 
@@ -30,7 +35,7 @@ Once, to link the accounts:
 Then, for every release:
 
 1. Work through the release checklist below.
-2. Publish a GitHub release: `gh release create v0.6.0 --title "v0.6.0" --notes-file <notes>`.
+2. Publish a GitHub release: `gh release create v0.7.0 --title "v0.7.0" --notes-file <notes>`.
 3. Zenodo receives the webhook, archives the source tarball, and mints the DOI within a few minutes.
 4. Copy the concept DOI into the README badge and `CITATION.cff`.
 
@@ -38,7 +43,7 @@ Zenodo reads [`.zenodo.json`](../.zenodo.json) for the deposit metadata: title, 
 keywords and description. Keep it in step with `CITATION.cff`; a test enforces that the version and
 licence agree.
 
-## Route B — manual deposit (current route)
+## Route B -- manual deposit (for deposits the repository cannot produce)
 
 This produces the same DOI, but nothing is automated: each new version must be uploaded by hand
 through **New version** on the existing record, which preserves the concept DOI.
@@ -47,18 +52,18 @@ through **New version** on the existing record, which preserves the concept DOI.
 2. Build a source archive from the tag, so the upload contains exactly the committed tree:
 
    ```bash
-   git archive --format=tar.gz --prefix=gdp-wage-transmission-0.6.0/ \
-     -o gdp-wage-transmission-0.6.0.tar.gz v0.6.0
-   sha256sum gdp-wage-transmission-0.6.0.tar.gz
+   git archive --format=tar.gz --prefix=gdp-wage-transmission-0.7.0/ \
+     -o gdp-wage-transmission-0.7.0.tar.gz v0.7.0
+   sha256sum gdp-wage-transmission-0.7.0.tar.gz
    ```
 
 3. Upload it at [zenodo.org/uploads/new](https://zenodo.org/uploads/new), then copy the metadata
    from `.zenodo.json` into the form: upload type *Software*, licence *MIT*, the version, the
    creators and the description.
 4. Under **Related identifiers**, add the repository URL with relation *is supplement to*.
-5. Set **Access** to *Restricted*, and paste the `access_conditions` text from `.zenodo.json` into
-   the conditions field. Restricted records still receive a public, citable DOI; only the files are
-   withheld. Switch the record to open once the corresponding paper is published.
+5. Set **Access** to *Open*, matching the public repository. A deposit that must stay
+   closed for a time should use *Embargoed* with a date rather than indefinite
+   restriction, so the files open automatically.
 6. Reserve the DOI, publish, and record the concept DOI in the README and `CITATION.cff`.
 
 Publishing is **permanent**: a Zenodo record cannot be deleted once published, and its DOI is
@@ -98,8 +103,8 @@ and confirm:
 Anyone can check that a Zenodo archive matches what this repository recorded:
 
 ```bash
-tar -xzf gdp-wage-transmission-0.6.0.tar.gz
-cd gdp-wage-transmission-0.6.0
+tar -xzf gdp-wage-transmission-0.7.0.tar.gz
+cd gdp-wage-transmission-0.7.0
 poetry run python tools/integrity.py release-manifest verify
 ```
 

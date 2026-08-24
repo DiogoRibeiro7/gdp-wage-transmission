@@ -1,8 +1,7 @@
 {
   "title": "GDP-Wage Transmission: reproducible estimation of productivity-to-wage transmission",
   "upload_type": "software",
-  "access_right": "restricted",
-  "access_conditions": "<p>Access is granted on request while the associated manuscripts are unpublished. The record's metadata and DOI are public; the archived files are released to requesters at the depositor's discretion, and openly once the corresponding papers are published.</p>",
+  "access_right": "open",
   "license": "mit",
   "language": "eng",
   "version": "0.7.0",
