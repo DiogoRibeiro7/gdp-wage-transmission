@@ -173,7 +173,11 @@ def _driver_label(driver: str) -> str:
 
 def _write(path: Path, text: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text.rstrip() + "\n", encoding="utf-8")
+    # LF explicitly. These fragments are hashed into the packet manifest, so their bytes must not
+    # depend on the platform; and a CRLF file would hide a stray carriage return left behind by a
+    # command mangled during generation, which is exactly what preflight looks for.
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write(text.rstrip() + "\n")
     return path
 
 
@@ -1241,36 +1245,37 @@ def preflight_pdf(paper_dir: Path, *, tolerance_pt: float = 1.0) -> int:
     if "multiply-defined labels" in text:
         failures.append("Multiply-defined labels: a reference may resolve to the wrong float.")
 
-    # A backslash lost inside a Python string becomes a control character: "\appendix" turns
-    # into BEL followed by "ppendix", which TeX typesets as stray text and never warns about.
-    # No control character other than tab or newline belongs in a LaTeX source.
+    # A backslash lost inside a Python string becomes a control character: "\\appendix"
+    # turns into BEL plus "ppendix", and "\\ref" into a carriage return plus "ef". TeX
+    # typesets both as stray text and warns about neither. Sources here are LF-only, so a
+    # carriage return is not a line ending: it is the signature of the second case.
+    #
+    # Matching a command's tail alone would also match the intact command, so each pattern
+    # requires that the characters which should precede it are absent. Every source is
+    # scanned, not only the generated fragments: the manuscript is mangled the same way.
+    damaged = (
+        (re.compile(r"(?<!\\r)ef\{(?:tab|fig|sec):"), "ref"),
+        (re.compile(r"(?<!\\t)extbf\{"), "textbf"),
+        (re.compile(r"(?<!\\t)extit\{"), "textit"),
+    )
     for source in sorted(paper_dir.rglob("*.tex")):
         raw = source.read_bytes()
-        stray = {byte for byte in raw if byte < 32 and byte not in (9, 10, 13)}
+        name = source.relative_to(paper_dir)
+        without_line_endings = raw.replace(b"\r\n", b"\n")
+        stray = {byte for byte in without_line_endings if byte < 32 and byte not in (9, 10)}
         if stray:
             names = ", ".join(f"0x{byte:02x}" for byte in sorted(stray))
             failures.append(
-                f"{source.relative_to(paper_dir)}: control character(s) {names} in the source. "
-                "A backslash was lost from a command, leaving its escape code behind."
+                f"{name}: control character(s) {names} in the source. A backslash was lost "
+                "from a command, leaving its escape code behind."
             )
-
-    fragments_dir = paper_dir / "generated"
-    if fragments_dir.is_dir():
-        # Matching a command's tail alone would also match the intact command, so each pattern
-        # requires that the characters which should precede it are absent.
-        damaged = (
-            (re.compile(r"(?<!\\r)ef\{(?:tab|fig|sec):"), "ref"),
-            (re.compile(r"(?<!\\t)extbf\{"), "textbf"),
-            (re.compile(r"(?<!\\t)extit\{"), "textit"),
-        )
-        for fragment in sorted(fragments_dir.glob("*.tex")):
-            body = fragment.read_text(encoding="utf-8", errors="replace")
-            for pattern, command in damaged:
-                if pattern.search(body):
-                    failures.append(
-                        f"{fragment.name}: a backslash was lost from a {command} command, so it "
-                        "reaches the page as literal text."
-                    )
+        body = raw.decode("utf-8", errors="replace")
+        for pattern, command in damaged:
+            if pattern.search(body):
+                failures.append(
+                    f"{name}: a backslash was lost from a {command} command, so it reaches "
+                    "the page as literal text."
+                )
 
     if failures:
         print(f"Preflight FAILED: {len(failures)} reference or markup problem(s).")
