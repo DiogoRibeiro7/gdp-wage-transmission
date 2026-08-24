@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.7.1 — 2026-08-24
+
+A patch release. No estimator or public interface changes; the package API is identical to
+0.7.0.
+
+### Fixed
+
+- Three wage-distribution tests read the exploratory panel under `results/`, which is not
+  tracked. They passed locally and failed on every clean checkout. They now skip with an
+  explicit reason when the panel is absent, and four synthetic tests were added so the
+  estimator stays covered where the data does not exist. This was the first defect caught by
+  continuous integration, which had been blocked until the repository became public.
+- Both notebook writers emit LF explicitly. `nbformat` otherwise writes the platform line
+  ending, and notebook bytes are recorded in the release manifest.
+
+### Changed
+
+- The four notebooks are rebuilt from `tools/build_notebooks.py`, run, and committed with their
+  outputs. Two of them previously could not execute at all outside the author's machine.
+  Notebooks 01 and 02 now run on the tracked Portugal reference extract; 03 and 04 fall back to
+  clearly labelled simulated frames when the processed panels are absent.
+- Zenodo archiving moves to the GitHub integration now that the repository is public, and
+  `.zenodo.json` declares open access rather than restricted.
+
+### Notes
+
+Continuous integration passes for the first time in this repository's history: build, lint,
+format, types, and the test suite on Python 3.11, 3.12 and 3.13.
+
+The OECD median-earnings dataflow identifier remains `status: unverified` and must be confirmed
+before a live source freeze.
+
+### Validation
+
+- 122 tests pass; coverage 71.5% against a 65% floor.
+- `ruff check`, `ruff format --check` and `mypy --strict` clean, locally and in CI.
+- Release manifest and the exported archive of the tag both verify.
+
+
 ## 0.7.0 — 2026-08-24
 
 First tagged release since the repository was reorganised. It collects the two revisions below:
