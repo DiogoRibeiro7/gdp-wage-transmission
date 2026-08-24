@@ -319,7 +319,7 @@ def _model_estimate(core: pd.DataFrame, driver: str, model: str) -> str:
         return f"{positive} / {negative}"
     if model == "local_projections":
         # Horizons are not estimates. The coefficients have their own table.
-        return "see Table~\ref{tab:local-projections}"
+        return r"see Table~\ref{tab:local-projections}"
     return "---"
 
 
@@ -679,6 +679,92 @@ def _decomposition_table(decomposition: pd.DataFrame) -> str:
     )
 
 
+def _decomposition_appendix(decomposition: pd.DataFrame, *, minimum_countries: int = 11) -> str:
+    """Render every country's decomposition, so the coverage claim is verifiable.
+
+    The main-text table shows the primary country. This one shows all of them, because a paper
+    stating that the decomposition covers N countries should let a reader count them.
+
+    Two guards. Countries are never silently dropped: fewer rows than expected raises rather than
+    quietly narrowing the evidence behind a coverage claim. And cumulative log changes over
+    different periods are not comparable, so a mixed-period set gains an annualised column rather
+    than being presented as though the totals could be read side by side.
+    """
+    if decomposition.empty:
+        return ""
+    components = {
+        "real_gdp_log_contribution": "Real GDP",
+        "labour_share_log_contribution": r"$\Delta$ share",
+        "employment_log_contribution": "Employees",
+        "relative_price_log_contribution": "Prices",
+    }
+    required = {"country", "start_year", "end_year", "observed_real_wage_log_change", *components}
+    missing = required.difference(decomposition.columns)
+    if missing:
+        raise ValueError(f"Decomposition appendix is missing columns: {sorted(missing)}")
+    if len(decomposition) < minimum_countries:
+        raise ValueError(
+            f"Decomposition appendix expected at least {minimum_countries} countries, got "
+            f"{len(decomposition)}: {sorted(decomposition['country'])}. Countries must not "
+            "disappear from a coverage claim without the build failing."
+        )
+
+    periods = set(zip(decomposition["start_year"], decomposition["end_year"], strict=True))
+    common_period = len(periods) == 1
+    frame = decomposition.sort_values("observed_real_wage_log_change", ascending=False)
+
+    rows: list[str] = []
+    for _, row in frame.iterrows():
+        span = max(int(row["end_year"]) - int(row["start_year"]), 1)
+        cells = [_escape_latex(str(row["country"]))]
+        if not common_period:
+            cells.append(f"{int(row['start_year'])}--{int(row['end_year'])}")
+        cells.append(_fmt_float(row["observed_real_wage_log_change"]))
+        if not common_period:
+            cells.append(_fmt_float(float(row["observed_real_wage_log_change"]) / span, 4))
+        cells.extend(_fmt_float(row[column]) for column in components)
+        residual = float(row.get("max_abs_identity_residual") or 0.0)
+        cells.append("$<10^{-9}$" if residual < 1e-9 else _fmt_float(residual, 2))
+        rows.append(" & ".join(cells) + r" \\")
+
+    header = ["Country"]
+    columns = "l"
+    if not common_period:
+        header.append("Period")
+        columns += "l"
+    header.append("Observed")
+    columns += "r"
+    if not common_period:
+        header.append("Annualised")
+        columns += "r"
+    header.extend(components.values())
+    header.append("Residual")
+    columns += "r" * (len(components) + 1)
+
+    period_note = (
+        f"All countries span {int(frame['start_year'].iloc[0])}--"
+        f"{int(frame['end_year'].iloc[0])}, so the cumulative changes are directly comparable."
+        if common_period
+        else (
+            "Periods differ across countries, so the cumulative changes are not comparable and an "
+            "annualised column is reported alongside them."
+        )
+    )
+    return _table_wrapper(
+        caption="Accounting decomposition by country (log points).",
+        label="tab:decomposition-appendix",
+        columns=columns,
+        header=" & ".join(header),
+        rows=rows,
+        note=(
+            f"{period_note} Each row is an exact accounting identity: the four components sum to "
+            "the observed change and the residual reports closure error. The United Kingdom is "
+            "absent because Eurostat returns no national-accounts observations for it over this "
+            "range. Components describe where wage growth is accounted for, not what caused it."
+        ),
+    )
+
+
 def _primary_results_text(
     core: pd.DataFrame, cross: pd.DataFrame, reliability: pd.DataFrame
 ) -> str:
@@ -830,9 +916,19 @@ def build_paper_packet(*, dossier_dir: Path, paper_dir: Path) -> PaperPacket:
     decomposition_path = dossier_dir / "decomposition_summary.csv"
     if decomposition_path.is_file():
         decomposition = pd.read_csv(decomposition_path)
+        primary_country = str(dossier_manifest.get("primary_country") or "PRT")
+        main_rows = decomposition.loc[decomposition["country"] == primary_country]
         decomposition_table = _write(
-            generated / "table_decomposition.tex", _decomposition_table(decomposition)
+            generated / "table_decomposition.tex",
+            _decomposition_table(main_rows if not main_rows.empty else decomposition),
         )
+        # The full set goes to an appendix, so the coverage claim can be checked.
+        if len(decomposition) > 1:
+            appendix = _decomposition_appendix(decomposition)
+            if appendix:
+                optional_paths.append(
+                    _write(generated / "table_decomposition_appendix.tex", appendix)
+                )
 
     generated_paths = [
         results_primary,
@@ -971,8 +1067,61 @@ def preflight_pdf(paper_dir: Path, *, tolerance_pt: float = 1.0) -> int:
         )
         offenders.append((width, f"{line.strip()} | {context[:90]}"))
 
+    # Overfull boxes were only part of what a broken manuscript looks like. Cross-references can
+    # print as "??", and a control sequence mangled at generation time can reach the page as
+    # literal text. Neither changes the exit code, and both survived a check that looked only at
+    # box widths.
+    failures: list[str] = []
+    for line in lines:
+        if line.startswith("LaTeX Warning: Reference"):
+            failures.append(line.strip())
+    if not failures and "There were undefined references" in text:
+        failures.append("LaTeX reported undefined references.")
+    if "multiply-defined labels" in text:
+        failures.append("Multiply-defined labels: a reference may resolve to the wrong float.")
+
+    # A backslash lost inside a Python string becomes a control character: "\appendix" turns
+    # into BEL followed by "ppendix", which TeX typesets as stray text and never warns about.
+    # No control character other than tab or newline belongs in a LaTeX source.
+    for source in sorted(paper_dir.rglob("*.tex")):
+        raw = source.read_bytes()
+        stray = {byte for byte in raw if byte < 32 and byte not in (9, 10, 13)}
+        if stray:
+            names = ", ".join(f"0x{byte:02x}" for byte in sorted(stray))
+            failures.append(
+                f"{source.relative_to(paper_dir)}: control character(s) {names} in the source. "
+                "A backslash was lost from a command, leaving its escape code behind."
+            )
+
+    fragments_dir = paper_dir / "generated"
+    if fragments_dir.is_dir():
+        # Matching a command's tail alone would also match the intact command, so each pattern
+        # requires that the characters which should precede it are absent.
+        damaged = (
+            (re.compile(r"(?<!\\r)ef\{(?:tab|fig|sec):"), "ref"),
+            (re.compile(r"(?<!\\t)extbf\{"), "textbf"),
+            (re.compile(r"(?<!\\t)extit\{"), "textit"),
+        )
+        for fragment in sorted(fragments_dir.glob("*.tex")):
+            body = fragment.read_text(encoding="utf-8", errors="replace")
+            for pattern, command in damaged:
+                if pattern.search(body):
+                    failures.append(
+                        f"{fragment.name}: a backslash was lost from a {command} command, so it "
+                        "reaches the page as literal text."
+                    )
+
+    if failures:
+        print(f"Preflight FAILED: {len(failures)} reference or markup problem(s).")
+        for failure in failures:
+            print(f"  {failure}")
+        if offenders:
+            print()
+
     if not offenders:
-        print("Preflight passed: no content runs past the margin.")
+        if failures:
+            return 1
+        print("Preflight passed: no overfull boxes, undefined references or damaged commands.")
         return 0
 
     offenders.sort(reverse=True)
