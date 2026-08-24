@@ -10,10 +10,14 @@ Zenodo issues two DOIs:
 - a **version DOI**, which resolves to one specific archived release — cite this in a paper, because
   it never changes.
 
-## Prerequisite: repository visibility
+## The route this project uses
 
-Zenodo's GitHub integration can only see **public** repositories. While this repository is private,
-the automatic flow is unavailable and the manual deposit below is the route to a DOI.
+Zenodo's GitHub integration can only see **public** repositories. This repository is private, so
+releases are deposited **manually** (Route B), as **restricted-access** records: the metadata and
+the DOI are public and citable, while the archived files are released to requesters at the
+depositor's discretion, and openly once the corresponding papers are published.
+
+Route A is documented for the point at which the repository becomes public.
 
 ## Route A — GitHub integration (public repository)
 
@@ -34,7 +38,7 @@ Zenodo reads [`.zenodo.json`](../.zenodo.json) for the deposit metadata: title, 
 keywords and description. Keep it in step with `CITATION.cff`; a test enforces that the version and
 licence agree.
 
-## Route B — manual deposit (works while private)
+## Route B — manual deposit (current route)
 
 This produces the same DOI, but nothing is automated: each new version must be uploaded by hand
 through **New version** on the existing record, which preserves the concept DOI.
@@ -52,7 +56,13 @@ through **New version** on the existing record, which preserves the concept DOI.
    from `.zenodo.json` into the form: upload type *Software*, licence *MIT*, the version, the
    creators and the description.
 4. Under **Related identifiers**, add the repository URL with relation *is supplement to*.
-5. Reserve the DOI, publish, and record the concept DOI in the README and `CITATION.cff`.
+5. Set **Access** to *Restricted*, and paste the `access_conditions` text from `.zenodo.json` into
+   the conditions field. Restricted records still receive a public, citable DOI; only the files are
+   withheld. Switch the record to open once the corresponding paper is published.
+6. Reserve the DOI, publish, and record the concept DOI in the README and `CITATION.cff`.
+
+Publishing is **permanent**: a Zenodo record cannot be deleted once published, and its DOI is
+minted for good. Check the metadata and the access level before pressing publish.
 
 Note that `git archive` exports only tracked files. The untracked working artefacts under
 `results/` and `data/raw/` are therefore **not** in the archive; they are reproducible from the
