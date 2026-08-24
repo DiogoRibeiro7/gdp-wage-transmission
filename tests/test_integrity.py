@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,7 @@ from tools.integrity import (
     parse_manifest,
     sha256_file,
     verify_analysis_lock,
+    verify_release_archive,
     write_analysis_lock,
 )
 
@@ -108,3 +110,55 @@ def test_repository_analysis_lock_verifies() -> None:
     present = {path: digest for path, digest in recorded.items() if Path(path).is_file()}
     for path, digest in present.items():
         assert sha256_file(Path(path)) == digest, f"{path} does not match its recorded digest"
+
+
+def _init_repo(root: Path) -> None:
+    """Create a deterministic throwaway git repository."""
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    for key, value in (
+        ("user.email", "t@example.com"),
+        ("user.name", "T"),
+        ("core.autocrlf", "false"),
+        ("commit.gpgsign", "false"),
+    ):
+        subprocess.run(["git", "config", key, value], cwd=root, check=True)
+
+
+def _commit_all(root: Path) -> None:
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "snapshot", "--no-verify"], cwd=root, check=True)
+
+
+def test_archive_verification_passes_for_a_consistent_tree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _init_repo(tmp_path)
+    tracked = tmp_path / "a.txt"
+    tracked.write_bytes(b"content\n")
+    manifest = tmp_path / "RELEASE_MANIFEST.sha256"
+    manifest.write_text(manifest_lines({"a.txt": sha256_file(tracked)}), encoding="utf-8")
+    _commit_all(tmp_path)
+
+    assert verify_release_archive("HEAD") == 0
+
+
+def test_archive_verification_catches_content_git_exports_differently(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A manifest that verifies against the working tree can still fail for a downloader."""
+    monkeypatch.chdir(tmp_path)
+    _init_repo(tmp_path)
+    tracked = tmp_path / "a.txt"
+    tracked.write_bytes(b"content\n")
+    manifest = tmp_path / "RELEASE_MANIFEST.sha256"
+    manifest.write_text(manifest_lines({"a.txt": sha256_file(tracked)}), encoding="utf-8")
+    _commit_all(tmp_path)
+
+    # The working tree keeps the digest the manifest recorded, but the committed
+    # bytes differ -- exactly the drift that reached the first v0.6.0 archive.
+    tracked.write_bytes(b"tampered\n")
+    _commit_all(tmp_path)
+    tracked.write_bytes(b"content\n")
+
+    assert verify_release_archive("HEAD") == 1

@@ -75,8 +75,14 @@ Run before tagging:
 
 ```bash
 make check          # ruff, ruff format, mypy, pytest
-make integrity      # release manifest + Paper 2 analysis lock
+make integrity      # release manifest, exported archive, Paper 2 analysis lock
 ```
+
+`make integrity` includes `make release-archive`, which hashes what `git archive` actually exports
+and checks it against the manifest carried inside that archive. This is the check that matters for
+a deposit: the manifest is generated from the working tree, and on Windows a file can differ
+between the working tree and the bytes git exports, so a manifest that verifies locally can still
+fail for whoever downloads the archive.
 
 and confirm:
 

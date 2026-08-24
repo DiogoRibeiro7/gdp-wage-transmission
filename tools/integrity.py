@@ -22,8 +22,10 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 import subprocess
+import tarfile
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 
@@ -157,6 +159,44 @@ def verify_release_manifest(manifest_path: Path) -> int:
     return report(missing, mismatched)
 
 
+def verify_release_archive(ref: str, manifest_path: Path = RELEASE_MANIFEST) -> int:
+    """Verify that the archive of a git ref matches the manifest it carries.
+
+    This is what a downloader sees: the manifest is read from inside the archive
+    and checked against the archived bytes. It catches drift between the working
+    tree the manifest was generated from and the content git actually exports --
+    line-ending normalisation, most of all.
+    """
+    exported = subprocess.run(
+        ["git", "archive", "--format=tar", ref], capture_output=True, check=True
+    ).stdout
+    digests: dict[str, str] = {}
+    manifest_text: str | None = None
+    with tarfile.open(fileobj=io.BytesIO(exported)) as archive:
+        for member in archive.getmembers():
+            if not member.isfile():
+                continue
+            handle = archive.extractfile(member)
+            if handle is None:
+                continue
+            data = handle.read()
+            digests[member.name] = hashlib.sha256(data).hexdigest()
+            if member.name == manifest_path.as_posix():
+                manifest_text = data.decode("utf-8")
+
+    if manifest_text is None:
+        print(f"MISMATCH: {manifest_path} is not present in the archive of {ref}")
+        return 1
+
+    recorded = parse_manifest(manifest_text)
+    missing = [path for path in sorted(recorded) if path not in digests]
+    mismatched = [
+        path for path in sorted(recorded) if path in digests and digests[path] != recorded[path]
+    ]
+    print(f"Archive of {ref}: {len(digests)} files, {len(recorded)} manifest entries.")
+    return report(missing, mismatched)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -169,6 +209,11 @@ def main(argv: list[str] | None = None) -> int:
     manifest.add_argument("action", choices=["write", "verify"])
     manifest.add_argument("--path", type=Path, default=RELEASE_MANIFEST)
 
+    archive = sub.add_parser("release-archive", help="archive of a git ref")
+    archive.add_argument("action", choices=["verify"])
+    archive.add_argument("--ref", default="HEAD")
+    archive.add_argument("--path", type=Path, default=RELEASE_MANIFEST)
+
     args = parser.parse_args(argv)
     if args.command == "analysis-lock":
         if args.action == "write":
@@ -176,6 +221,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"combined_sha256: {payload['combined_sha256']}")
             return 0
         return verify_analysis_lock(args.path)
+    if args.command == "release-archive":
+        return verify_release_archive(args.ref, args.path)
     if args.action == "write":
         return write_release_manifest(args.path)
     return verify_release_manifest(args.path)

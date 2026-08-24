@@ -1,4 +1,4 @@
-.PHONY: help install hooks format format-check lint typecheck test coverage check build clean integrity release-manifest release-manifest-verify paper2-lock paper2-lock-verify demo spec-lock freeze-plan freeze-fetch freeze-audit snapshot-registry publication-gate publication-dossier paper-packet paper-audit paper2-breaks paper2-pdf
+.PHONY: help install hooks format format-check lint typecheck test coverage check build clean integrity release-manifest release-manifest-verify release-archive paper2-lock paper2-lock-verify demo spec-lock freeze-plan freeze-fetch freeze-audit snapshot-registry publication-gate publication-dossier paper-packet paper-audit paper2-breaks paper2-pdf
 
 # Default target: list the documented entry points.
 help:
@@ -38,13 +38,18 @@ clean: ## Remove build, cache and coverage artefacts
 	rm -rf dist build htmlcov .coverage coverage.xml
 	rm -rf .pytest_cache .mypy_cache .ruff_cache
 
-integrity: release-manifest-verify paper2-lock-verify ## Verify every recorded integrity artefact
+REF ?= HEAD
+
+integrity: release-manifest-verify release-archive paper2-lock-verify ## Verify every recorded integrity artefact
 
 release-manifest: ## Regenerate RELEASE_MANIFEST.sha256 over its resolved scope
 	poetry run python tools/integrity.py release-manifest write
 
 release-manifest-verify: ## Check RELEASE_MANIFEST.sha256 against the working tree
 	poetry run python tools/integrity.py release-manifest verify
+
+release-archive: ## Check that git's archive of REF matches the manifest it carries
+	poetry run python tools/integrity.py release-archive verify --ref $(REF)
 
 paper2-lock: ## Recompute the Paper 2 analysis-lock digests
 	poetry run python tools/integrity.py analysis-lock write
