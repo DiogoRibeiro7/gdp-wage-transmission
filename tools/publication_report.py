@@ -184,6 +184,7 @@ def _table_wrapper(
     return f"""% AUTO-GENERATED. DO NOT EDIT.
 \\begin{{table}}[htbp]
 \\centering
+\\footnotesize
 \\caption{{{caption}}}
 \\label{{{label}}}
 \\begin{{tabular}}{{{columns}}}
@@ -198,6 +199,34 @@ def _table_wrapper(
 \\end{{minipage}}
 \\end{{table}}
 """
+
+
+def _multiplier_note(core: pd.DataFrame) -> str:
+    """Report the dependent-lag coefficient behind the long-run multiplier."""
+    parts: list[str] = []
+    for driver in ("productivity_per_worker", "productivity"):
+        results = _verified_model_results(core, driver)
+        if not results:
+            continue
+        coefficients = results.get("distributed_lag", {}).get("summary", {}).get("coefficients", [])
+        gamma = next((c for c in coefficients if c.get("name") == "wage_l1"), None)
+        if not gamma:
+            continue
+        value = float(gamma["estimate"])
+        parts.append(
+            rf"{_driver_label(driver)}: $\hat{{\gamma}}={_fmt_float(value)}$ "
+            rf"(SE {_fmt_float(gamma['std_error'])}), so $1-\hat{{\gamma}}={_fmt_float(1.0 - value)}$"
+        )
+    if not parts:
+        return ""
+    return (
+        " The multiplier is a ratio: " + "; ".join(parts) + ". "
+        r"Each $|\hat{\gamma}|<1$, so the ratio is finite and the implied adjustment "
+        "is stable, but its interval is a delta-method approximation. With a denominator "
+        "estimated from the same small sample, that approximation degrades as "
+        r"$1-\hat{\gamma}$ approaches zero, and a Fieller or bootstrap interval would be "
+        "a more reliable guide than the reported one."
+    )
 
 
 def _core_table(core: pd.DataFrame) -> str:
@@ -225,28 +254,38 @@ def _core_table(core: pd.DataFrame) -> str:
         se = _fmt_float(row["distributed_lag_std_error"])
         ci = f"[{_fmt_float(row['distributed_lag_ci_low'])}, {_fmt_float(row['distributed_lag_ci_high'])}]"
         p_value = _fmt_float(row["distributed_lag_p_value"])
+        # n_levels is the input series length. The regression loses observations to
+        # differencing and to two driver lags, so reporting it as N overstates the sample the
+        # estimate actually rests on.
+        results = _verified_model_results(core, str(row["driver"]))
+        summary = (results or {}).get("distributed_lag", {}).get("summary", {})
+        effective = summary.get("nobs")
+        effective_text = str(int(effective)) if effective else "--"
         rows.append(
-            f"{driver} ({role}) & {period} & {int(row['n_levels'])} & {estimate} & {se} & {ci} & {p_value} \\\\"
+            f"{driver} ({role}) & {period} & {int(row['n_levels'])} & {effective_text} & "
+            f"{estimate} & {se} & {ci} & {p_value} \\\\"
         )
     return _table_wrapper(
         caption="Pre-specified cumulative wage-transmission estimates.",
         label="tab:core-estimates",
-        columns="lrrrrrr",
-        header="Driver & Period & $N$ & $\\hat\\Theta$ & HAC SE & 95\\% CI & $p$",
+        columns="p{3.1cm}rrrrrrr",
+        header=("Driver & Period & Levels & Reg.\\ $N$ & $\\hat\\Theta$ & HAC SE & 95\\% CI & $p$"),
         rows=rows,
         note=(
             "The primary estimand is the cumulative distributed-lag coefficient. "
-            "GDP per person employed is the pre-specified primary driver; GDP per hour is secondary. "
-            "These are reduced-form associations, not causal effects."
+            "GDP per person employed is the pre-specified primary driver; GDP per hour is "
+            "secondary. Levels is the input series length; Reg.\\ $N$ is the regression sample "
+            "after differencing and two driver lags. "
+            "These are reduced-form associations, not causal effects." + _multiplier_note(core)
         ),
     )
 
 
 MODEL_LABELS = {
     "ecm_long_run": "Error-correction long run",
-    "state_space_latest": "State-space, latest slope",
+    "state_space_latest": "State-space latest slope",
     "structural_breaks": "Structural breaks",
-    "asymmetry": "Asymmetry (expansion vs contraction)",
+    "asymmetry": "Asymmetry",
     "local_projections": "Local projections",
 }
 
@@ -279,8 +318,8 @@ def _model_estimate(core: pd.DataFrame, driver: str, model: str) -> str:
         negative = _fmt_float(row.get("asymmetry_negative_cumulative"))
         return f"{positive} / {negative}"
     if model == "local_projections":
-        horizons = str(row.get("supported_local_projection_horizons") or "").replace(";", ", ")
-        return _escape_latex(f"h = {horizons}") if horizons else "---"
+        # Horizons are not estimates. The coefficients have their own table.
+        return "see Table~\ref{tab:local-projections}"
     return "---"
 
 
@@ -307,7 +346,7 @@ def _reliability_table(reliability: pd.DataFrame, core: pd.DataFrame) -> str:
     return _table_wrapper(
         caption="Supporting models, their estimates, and their pre-specified reliability gates.",
         label="tab:reliability-gates",
-        columns="lllll",
+        columns="p{2.3cm}p{2.2cm}lp{1.5cm}p{3.6cm}",
         header="Driver & Model & Estimate & Claim status & Gate result",
         rows=rows,
         note=(
@@ -685,8 +724,20 @@ def _primary_results_text(
             f"{_fmt_float(c['random_effect_estimate'])} with $I^2={_fmt_float(c['i_squared_percent'], 1)}\\%$."
         )
 
-    eligible_text = ", ".join(_escape_latex(item) for item in eligible_models) or "none"
-    ineligible_text = ", ".join(_escape_latex(item) for item in ineligible_models) or "none"
+    eligible_text = (
+        ", ".join(
+            _escape_latex(MODEL_LABELS.get(item, item.replace("_", " ")).lower())
+            for item in eligible_models
+        )
+        or "none"
+    )
+    ineligible_text = (
+        ", ".join(
+            _escape_latex(MODEL_LABELS.get(item, item.replace("_", " ")).lower())
+            for item in ineligible_models
+        )
+        or "none"
+    )
     return f"""% AUTO-GENERATED. DO NOT EDIT.
 \\subsection{{Pre-specified primary result}}
 The primary specification uses {_escape_latex(driver)}. Over {int(row["start_year"])}--{int(row["end_year"])}, annualised real wage growth was {wage_growth} and annualised driver growth was {driver_growth}. The pre-specified cumulative distributed-lag estimate was $\\hat{{\\Theta}}={estimate}$ (HAC SE {se}; 95\\% CI [{low}, {high}]; $p={p_value}$). This is a reduced-form association and is not interpreted causally.
@@ -883,6 +934,58 @@ def audit_paper_sources(*, paper_dir: Path, generated_manifest: Path) -> None:
             raise ValueError(f"paper/main.tex does not include generated/{name}")
 
 
+OVERFULL_PATTERN = re.compile(r"Overfull \\hbox \(([0-9.]+)pt too wide\)")
+
+
+def preflight_pdf(paper_dir: Path, *, tolerance_pt: float = 1.0) -> int:
+    """Fail when the compiled manuscript has content running past the margin.
+
+    A successful pdflatex exit code says nothing about layout: TeX reports overfull boxes as
+    warnings and still writes a PDF with text running off the page. Checking the exit status
+    alone let a manuscript through with a table 262pt past the margin, so the log is the thing
+    that must be read.
+    """
+    log_path = paper_dir / "main.log"
+    if not log_path.is_file():
+        raise FileNotFoundError(
+            f"{log_path} not found; compile the manuscript before running preflight."
+        )
+    text = log_path.read_text(encoding="utf-8", errors="replace")
+
+    offenders: list[tuple[float, str]] = []
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        match = OVERFULL_PATTERN.search(line)
+        if not match:
+            continue
+        width = float(match.group(1))
+        if width <= tolerance_pt:
+            continue
+        context = next(
+            (
+                lines[offset].strip()
+                for offset in range(index + 1, min(index + 4, len(lines)))
+                if lines[offset].strip()
+            ),
+            "",
+        )
+        offenders.append((width, f"{line.strip()} | {context[:90]}"))
+
+    if not offenders:
+        print("Preflight passed: no content runs past the margin.")
+        return 0
+
+    offenders.sort(reverse=True)
+    print(f"Preflight FAILED: {len(offenders)} overfull box(es) exceed {tolerance_pt}pt.")
+    for width, detail in offenders:
+        print(f"  {width:8.1f}pt  {detail}")
+    print(
+        "\nContent running past the margin is clipped in the PDF. Fix the source rather than "
+        "raising the tolerance."
+    )
+    return 1
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -900,6 +1003,12 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path("paper/generated/paper_packet_manifest.json"),
     )
+
+    preflight = subparsers.add_parser(
+        "preflight", help="Fail if the compiled manuscript runs past the margin."
+    )
+    preflight.add_argument("--paper-dir", type=Path, default=Path("paper"))
+    preflight.add_argument("--tolerance-pt", type=float, default=1.0)
     return parser
 
 
@@ -910,6 +1019,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         packet = build_paper_packet(dossier_dir=args.dossier, paper_dir=args.paper_dir)
         print(f"Paper packet written to {packet.generated_dir}; manifest={packet.manifest}")
         return 0
+    if args.command == "preflight":
+        return preflight_pdf(args.paper_dir, tolerance_pt=args.tolerance_pt)
     audit_paper_sources(paper_dir=args.paper_dir, generated_manifest=args.manifest)
     print(f"Paper packet audit passed: {args.manifest}")
     return 0
