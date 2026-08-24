@@ -5,7 +5,7 @@
   "access_conditions": "<p>Access is granted on request while the associated manuscripts are unpublished. The record's metadata and DOI are public; the archived files are released to requesters at the depositor's discretion, and openly once the corresponding papers are published.</p>",
   "license": "mit",
   "language": "eng",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "creators": [
     {
       "name": "Ribeiro, Diogo",

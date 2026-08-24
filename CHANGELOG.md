@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.7.0 — 2026-08-24
+
+First tagged release since the repository was reorganised. It collects the two revisions below:
+the removal of the manuscript trees and the specification-lock machinery, and the implementation
+of the outstanding continuation-prompt milestones.
+
+### Breaking
+
+The specification-lock API is gone. Code importing `SpecificationLock`, `LockedFile`,
+`build_specification_lock`, `write_specification_lock`, `read_specification_lock` or
+`verify_specification_lock` from `wage_transmission.publication` will fail. The
+`lock-publication-spec` CLI command and the `--specification-lock` option of
+`build-publication-dossier` are removed, as is `tools/publication_report.py`.
+
+`build_publication_dossier` no longer accepts `specification_lock` or `root`. It still hashes
+every input and output into its manifest, so a dossier remains internally auditable, but it is no
+longer bound to a pre-results commitment.
+
+### Added
+
+Formal single-break inference with a wild-bootstrap p-value and a bootstrap break-date interval;
+block-bootstrap bands for the time-varying elasticity and local projections; a panel
+fixed-effects estimator with country-clustered standard errors; a source-schema audit that fails
+on mixed units or price bases; coverage-gated median-earnings support; and a release manifest
+recording package, interpreter, numerical-library and configuration state alongside raw and
+output digests.
+
+### Known limitations
+
+The OECD median-earnings dataflow identifier in `config/data_sources.yml` is marked
+`status: unverified` and must be confirmed against the OECD Data Explorer before a live source
+freeze. Continuous integration has not run against this release: GitHub Actions is disabled on
+the account for billing reasons, so the gates below were verified locally only.
+
+### Validation
+
+- 118 tests pass; coverage 71.53% against a 65% floor.
+- `ruff check`, `ruff format --check` and `mypy --strict` clean.
+- Release manifest and the exported archive of the tag both verify.
+
+
 ## Continuation milestones implemented — 2026-08-24
 
 Works through the milestone list in the repository's continuation prompt. Six of the eight
