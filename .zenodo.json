@@ -1,0 +1,33 @@
+{
+  "title": "GDP-Wage Transmission: reproducible estimation of productivity-to-wage transmission",
+  "upload_type": "software",
+  "access_right": "open",
+  "license": "mit",
+  "language": "eng",
+  "version": "0.6.0",
+  "creators": [
+    {
+      "name": "Ribeiro, Diogo"
+    }
+  ],
+  "keywords": [
+    "economics",
+    "labour economics",
+    "wage transmission",
+    "productivity",
+    "time series econometrics",
+    "structural breaks",
+    "reproducible research",
+    "Portugal",
+    "OECD",
+    "Eurostat"
+  ],
+  "description": "<p>A reproducible empirical research repository for studying how economic growth and labour productivity transmit into real wages, how quickly that transmission occurs, and whether the relationship changes over time. The primary country is Portugal, with cross-country robustness analysis.</p><p>The model stack progresses from accounting identities to increasingly flexible time-series models: an exact national-accounts decomposition, stationarity and cointegration diagnostics, distributed-lag growth regressions, an Engle-Granger error-correction model, an endogenous least-squares structural-break search, a state-space time-varying transmission elasticity, local projections, an asymmetric transmission regression, optional VECM impulse responses, and cross-country robustness estimates.</p><p>Break dates are estimated rather than assumed: the structural-break and state-space models do not hard-code historical dates, and historical events are used only after estimation to interpret estimated regimes.</p><p>Reproducibility is enforced by construction. Official OECD and Eurostat extracts are stored unchanged with their query URL, retrieval timestamp and SHA-256 digest; analytical panels are rebuilt from those frozen bytes; and a pre-results specification lock binds the configuration files, package version and analysis source-tree hash so that published numbers cannot drift from the specification they were produced under.</p>",
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/DiogoRibeiro7/gdp-wage-transmission",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ]
+}

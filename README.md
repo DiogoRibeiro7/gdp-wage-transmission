@@ -521,6 +521,7 @@ Detailed notes live under [`docs/`](docs/):
 | [github_source_freeze.md](docs/github_source_freeze.md) | Running the internet-enabled freeze workflow |
 | [paper_generation.md](docs/paper_generation.md) | Building the paper-facing report packet |
 | [portugal_empirical_audit.md](docs/portugal_empirical_audit.md) | Frozen Portugal reference audit |
+| [zenodo_archiving.md](docs/zenodo_archiving.md) | Minting a DOI for a release, and the release checklist |
 
 Live-data audit notes for the exploratory revisions are also in `docs/`, one file per revision.
 
