@@ -151,6 +151,12 @@ def _fmt_pct_fraction(value: Any, digits: int = 1) -> str:
 def _bool_value(value: Any) -> bool:
     if isinstance(value, bool):
         return value
+    # numpy booleans arrive from pandas and are not instances of bool or int.
+    item = getattr(value, "item", None)
+    if callable(item) and getattr(value, "shape", None) == ():
+        value = item()
+        if isinstance(value, bool):
+            return value
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return bool(value)
     if isinstance(value, str):
@@ -526,7 +532,7 @@ def _local_projection_table(core: pd.DataFrame) -> str | None:
     return _table_wrapper(
         caption="Local-projection responses of real wages to productivity growth.",
         label="tab:local-projections",
-        columns="lrrrrrr",
+        columns="p{2.9cm}rrrrrr",
         header=(r"Driver & Horizon & Estimate & HAC SE & HAC 95\% CI & Bootstrap 95\% CI & $n$"),
         rows=rows,
         note=(
@@ -873,6 +879,72 @@ def _source_table(config_path: Path) -> str | None:
     )
 
 
+def _break_table(core: pd.DataFrame) -> str | None:
+    """Report the break evidence, which the text describes but no table carried.
+
+    Two procedures answer different questions and are reported side by side. The BIC
+    segmentation asks how many regimes fit best and always returns a partition; the sup-F test
+    asks whether there is evidence of a break at all, and can answer no. Reporting the selected
+    dates without the test invites the first to be read as the second.
+    """
+    rows: list[str] = []
+    for driver in ("productivity_per_worker", "productivity"):
+        results = _verified_model_results(core, driver)
+        if not results:
+            continue
+        inference = results.get("break_inference")
+        if not inference:
+            continue
+        segmentation = results.get("structural_breaks") or {}
+        reliability = results.get("reliability") or {}
+        bic_years = ", ".join(str(year) for year in segmentation.get("break_years") or []) or "none"
+        rows.append(
+            "{} & {} & {} & {} & {} & [{}, {}] & {} & {} \\\\".format(
+                _escape_latex(_driver_label(driver)),
+                _escape_latex(bic_years),
+                int(inference["break_year"]),
+                _fmt_float(inference["sup_f"], 2),
+                _fmt_float(inference["p_value"]),
+                int(inference["break_year_lower"]),
+                int(inference["break_year_upper"]),
+                int(reliability.get("structural_break_smallest_segment") or 0),
+                _escape_latex(
+                    "not eligible"
+                    if not _bool_value(
+                        core.loc[core["driver"] == driver, "structural_break_claim_eligible"].iloc[
+                            0
+                        ]
+                    )
+                    else "eligible"
+                ),
+            )
+        )
+    if not rows:
+        return None
+
+    return _table_wrapper(
+        caption="Structural-break evidence: BIC segmentation and the sup-F test.",
+        label="tab:breaks",
+        columns="p{2.6cm}lrrrlrl",
+        header=(
+            r"Driver & BIC breaks & sup-$F$ date & sup-$F$ & $p$ & Date interval & "
+            r"Min.\ segment & Gate"
+        ),
+        rows=rows,
+        note=(
+            "The two columns on the left come from different procedures. BIC segmentation selects "
+            "a number of regimes and always returns a partition, so it cannot indicate the absence "
+            "of a break. The sup-$F$ statistic is the largest Chow $F$ over candidate dates after "
+            "trimming 15\\% from each end, with a $p$-value from a Rademacher wild bootstrap that "
+            "repeats the whole date search on each replication, so it already accounts for the "
+            "search. The date interval is the percentile interval of the bootstrap arg-max. "
+            "Minimum segment is the shortest regime the segmentation produced, against a "
+            "pre-specified threshold of ten observations, which is why the gate is closed for both "
+            "drivers."
+        ),
+    )
+
+
 def _panel_robustness_table(dossier_dir: Path) -> str | None:
     """Render the pooled panel estimates, labelled as post-hoc.
 
@@ -1088,6 +1160,10 @@ def build_paper_packet(*, dossier_dir: Path, paper_dir: Path) -> PaperPacket:
     sources = _source_table(Path("config/data_sources.yml"))
     if sources is not None:
         optional_paths.append(_write(generated / "table_sources.tex", sources))
+
+    breaks = _break_table(core)
+    if breaks is not None:
+        optional_paths.append(_write(generated / "table_breaks.tex", breaks))
 
     panel = _panel_robustness_table(dossier_dir)
     if panel is not None:
