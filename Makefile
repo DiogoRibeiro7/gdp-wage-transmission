@@ -1,4 +1,4 @@
-.PHONY: help install hooks format format-check lint typecheck test coverage check build clean integrity release-manifest release-manifest-verify release-archive notebooks demo freeze-plan freeze-fetch freeze-audit snapshot-registry publication-gate publication-dossier wage-distribution-breaks
+.PHONY: help install hooks format format-check lint typecheck test coverage check build clean integrity release-manifest release-manifest-verify release-archive spec-lock paper2-lock paper2-lock-verify paper-packet paper-audit notebooks demo freeze-plan freeze-fetch freeze-audit snapshot-registry publication-gate publication-dossier wage-distribution-breaks
 
 # Default target: list the documented entry points.
 help:
@@ -50,6 +50,29 @@ release-manifest-verify: ## Check RELEASE_MANIFEST.sha256 against the working tr
 
 release-archive: ## Check that git's archive of REF matches the manifest it carries
 	poetry run python tools/integrity.py release-archive verify --ref $(REF)
+
+spec-lock: ## Write the specification lock (artefact stays outside version control)
+	@test -n "$(LABEL)" || (echo "Usage: make spec-lock LABEL=<label>" && exit 2)
+	poetry run wage-transmission lock-publication-spec \
+		--label $(LABEL) \
+		--output paper/specification_lock.json
+
+paper2-lock: ## Recompute the Paper 2 analysis-lock digests
+	poetry run python tools/integrity.py analysis-lock write
+
+paper2-lock-verify: ## Check the Paper 2 analysis lock against the working tree
+	poetry run python tools/integrity.py analysis-lock verify
+
+paper-packet: ## Build the paper-facing report packet from a dossier
+	@test -n "$(VINTAGE)" || (echo "Usage: make paper-packet VINTAGE=YYYY-MM-DD" && exit 2)
+	poetry run python tools/publication_report.py build \
+		--dossier results/vintages/$(VINTAGE)/publication_dossier \
+		--paper-dir paper
+
+paper-audit: ## Audit the paper-facing packet against its manifest
+	poetry run python tools/publication_report.py audit \
+		--paper-dir paper \
+		--manifest paper/generated/paper_packet_manifest.json
 
 notebooks: ## Rebuild the notebooks from tools/build_notebooks.py and execute them in place
 	poetry run python tools/build_notebooks.py

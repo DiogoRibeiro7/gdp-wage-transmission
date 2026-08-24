@@ -1,5 +1,51 @@
 # Changelog
 
+## Specification-lock machinery restored — 2026-08-24
+
+Reverses the code removal in 0.7.0 while keeping the outcome that was actually wanted: the
+manuscript trees stay out of version control, and the integrity machinery stays in the package.
+
+The 0.7.0 change conflated two separable things. Keeping `paper/` and `papers/` off GitHub does
+not require deleting the code that reads them, because the code is generic and the artefacts it
+writes are just files on a path. Only the artefacts needed to leave.
+
+### Restored
+
+- `SpecificationLock`, `LockedFile`, `build_specification_lock`, `write_specification_lock`,
+  `read_specification_lock` and `verify_specification_lock` in `wage_transmission.publication`.
+- The `lock-publication-spec` CLI command and `--specification-lock` on
+  `build-publication-dossier`.
+- `tools/publication_report.py`, the paper-facing packet builder, and its tests.
+- The analysis-lock half of `tools/integrity.py`, including `combined_sha256`, and its tests.
+- `docs/specification_lock.md` and `docs/paper_generation.md`.
+- The `spec-lock`, `paper-packet`, `paper-audit`, `paper2-lock` and `paper2-lock-verify` Makefile
+  targets.
+
+### Changed
+
+`--specification-lock` is now **optional**. The lock artefact lives under the untracked `paper/`
+tree, so a clean checkout does not carry one; requiring it would make the dossier unbuildable
+anywhere but the author's machine. When a lock is supplied it is verified exactly as before, and
+the dossier manifest records `specification_lock_verified` either way. A dossier without a
+verified lock is still fully auditable — every input and output is hashed — it simply is not
+evidence of a pre-results commitment, and the manifest no longer lets those two states be
+confused.
+
+### What this arrangement costs
+
+CI cannot enforce the lock, because the artefact is not in the repository. Verifying a lock
+before promoting a run is a manual discipline. That is the price of keeping the manuscripts
+private, and it is a reasonable one: the lock's purpose is to make specification drift visible to
+the author, not to gate a public build.
+
+### Validation
+
+- **134 tests pass**, up from 122; the twelve restored tests cover the lock machinery and the
+  paper packet.
+- `ruff check`, `ruff format --check` and `mypy --strict` clean.
+- The Paper 2 analysis lock verifies against the local untracked artefact.
+
+
 ## 0.7.1 — 2026-08-24
 
 A patch release. No estimator or public interface changes; the package API is identical to

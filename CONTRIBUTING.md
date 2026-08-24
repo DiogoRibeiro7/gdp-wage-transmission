@@ -49,10 +49,12 @@ constraints rather than conventions.
    query URL, retrieval timestamp and SHA-256 digest recorded alongside. If an official series is
    revised upstream, add a new vintage; never rewrite an existing one.
 3. **Do not retro-fit a specification to a result.** The publication hierarchy in
-   `config/publication.yml` records what was chosen before results were seen. Changing it is
-   sometimes legitimate, but it must be argued for explicitly in the pull request, and a change
-   made after inspecting results is specification drift, not a fix. Manuscripts and the
-   specification locks that bind them to a source freeze are maintained outside this repository.
+   `config/publication.yml`, and the specification lock that binds it to a source freeze, record
+   what was chosen before results were seen. Changing either is sometimes legitimate, but it must
+   be argued for explicitly in the pull request, and a change made after inspecting results is
+   specification drift, not a fix. The lock artefacts live under the untracked `paper/` and
+   `papers/` trees, so CI cannot enforce them: verifying a lock before promoting a run is a
+   manual discipline, not an automated gate.
 4. **Break dates are estimated, not assumed.** The structural-break and state-space models must
    not hard-code historical dates. Historical events belong in the interpretation of estimated
    regimes, not in their identification.

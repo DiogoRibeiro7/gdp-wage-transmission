@@ -487,6 +487,8 @@ Detailed notes live under [`docs/`](docs/):
 | [data_dictionary.md](docs/data_dictionary.md) | Canonical panel schema and variable definitions |
 | [source_vintages.md](docs/source_vintages.md) | Vintage layout, snapshot registry and revision handling |
 | [reproducibility.md](docs/reproducibility.md) | How to reproduce a published run end to end |
+| [specification_lock.md](docs/specification_lock.md) | What the specification lock binds, and why its artefact stays untracked |
+| [paper_generation.md](docs/paper_generation.md) | Building the paper-facing report packet |
 | [github_source_freeze.md](docs/github_source_freeze.md) | Running the internet-enabled freeze workflow |
 | [portugal_empirical_audit.md](docs/portugal_empirical_audit.md) | Frozen Portugal reference audit |
 | [zenodo_archiving.md](docs/zenodo_archiving.md) | Minting a DOI for a release, and the release checklist |

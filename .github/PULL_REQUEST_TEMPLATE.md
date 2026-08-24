@@ -23,6 +23,8 @@
 - [ ] The publication hierarchy in `config/publication.yml` is unchanged.
 - [ ] It is changed, and the PR explains why that is legitimate rather than
       specification drift.
+- [ ] If a specification lock applies to this work, it still verifies. Lock
+      artefacts are untracked, so this check is manual.
 
 ## Checklist
 

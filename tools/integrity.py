@@ -1,4 +1,4 @@
-"""Recompute and verify the repository's release manifest.
+"""Recompute and verify the repository's integrity artefacts.
 
 ``RELEASE_MANIFEST.sha256`` is a ``sha256sum``-compatible manifest of the release
 tree. It previously existed without a generator, so its digests could not be
@@ -12,11 +12,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import io
+import json
 import subprocess
 import tarfile
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 
+ANALYSIS_LOCK = Path("papers/wage_distribution_breaks/analysis_lock.json")
 RELEASE_MANIFEST = Path("RELEASE_MANIFEST.sha256")
 
 # Manuscripts are maintained outside this repository. They may still be present in a
@@ -32,6 +34,11 @@ def sha256_file(path: Path) -> str:
 def manifest_lines(digests: Mapping[str, str]) -> str:
     """Render digests in sha256sum line format, sorted by path."""
     return "".join(f"{digests[path]}  {path}\n" for path in sorted(digests))
+
+
+def combined_sha256(digests: Mapping[str, str]) -> str:
+    """Return the digest binding a set of per-file digests together."""
+    return hashlib.sha256(manifest_lines(digests).encode("utf-8")).hexdigest()
 
 
 def parse_manifest(text: str) -> dict[str, str]:
@@ -112,6 +119,40 @@ def verify_release_manifest(manifest_path: Path) -> int:
     return report(missing, mismatched)
 
 
+def write_analysis_lock(lock_path: Path) -> dict[str, object]:
+    """Recompute the per-file and combined digests of the Paper 2 lock."""
+    payload = json.loads(lock_path.read_text(encoding="utf-8"))
+    files = {path: sha256_file(Path(path)) for path in sorted(payload["files"])}
+    payload["files"] = files
+    payload["combined_sha256"] = combined_sha256(files)
+    lock_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n"
+    )
+    return payload
+
+
+def verify_analysis_lock(lock_path: Path) -> int:
+    """Verify the Paper 2 lock against the current working tree."""
+    payload = json.loads(lock_path.read_text(encoding="utf-8"))
+    recorded: dict[str, str] = payload["files"]
+    missing = [path for path in sorted(recorded) if not Path(path).is_file()]
+    mismatched = [
+        path
+        for path in sorted(recorded)
+        if Path(path).is_file() and sha256_file(Path(path)) != recorded[path]
+    ]
+    expected_combined = combined_sha256(recorded)
+    status = report(missing, mismatched)
+    if payload.get("combined_sha256") != expected_combined:
+        print(
+            "MISMATCH: combined_sha256 does not bind the recorded per-file digests\n"
+            f"  recorded: {payload.get('combined_sha256')}\n"
+            f"  expected: {expected_combined}"
+        )
+        return 1
+    return status
+
+
 def verify_release_archive(ref: str, manifest_path: Path = RELEASE_MANIFEST) -> int:
     """Verify that the archive of a git ref matches the manifest it carries.
 
@@ -154,6 +195,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
 
+    lock = sub.add_parser("analysis-lock", help="Paper 2 post-hoc analysis lock")
+    lock.add_argument("action", choices=["write", "verify"])
+    lock.add_argument("--path", type=Path, default=ANALYSIS_LOCK)
+
     manifest = sub.add_parser("release-manifest", help="repository release manifest")
     manifest.add_argument("action", choices=["write", "verify"])
     manifest.add_argument("--path", type=Path, default=RELEASE_MANIFEST)
@@ -164,6 +209,12 @@ def main(argv: list[str] | None = None) -> int:
     archive.add_argument("--path", type=Path, default=RELEASE_MANIFEST)
 
     args = parser.parse_args(argv)
+    if args.command == "analysis-lock":
+        if args.action == "write":
+            payload = write_analysis_lock(args.path)
+            print(f"combined_sha256: {payload['combined_sha256']}")
+            return 0
+        return verify_analysis_lock(args.path)
     if args.command == "release-archive":
         return verify_release_archive(args.ref, args.path)
     if args.action == "write":

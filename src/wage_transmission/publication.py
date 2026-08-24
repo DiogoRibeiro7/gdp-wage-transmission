@@ -1,10 +1,11 @@
-"""Machine-generated empirical dossier for a verified result vintage."""
+"""Pre-specified publication lock and machine-generated empirical dossier."""
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,28 @@ from wage_transmission.version import __version__
 
 
 @dataclass(frozen=True)
+class LockedFile:
+    """One configuration file protected by the pre-results specification lock."""
+
+    path: str
+    sha256: str
+
+
+@dataclass(frozen=True)
+class SpecificationLock:
+    """Immutable hashes of analysis choices and estimator code fixed before promotion."""
+
+    schema_version: int
+    label: str
+    created_with_package_version: str
+    analysis_code_root: str
+    analysis_code_sha256: str
+    project_config: LockedFile
+    models_config: LockedFile
+    publication_config: LockedFile
+
+
+@dataclass(frozen=True)
 class PublicationDossierResult:
     """Paths produced by the publication-dossier builder."""
 
@@ -30,10 +53,144 @@ class PublicationDossierResult:
     manifest: Path
 
 
+def _file_lock(path: Path) -> LockedFile:
+    # POSIX form keeps a lock written on Windows verifiable on Linux CI.
+    return LockedFile(path=path.as_posix(), sha256=sha256_bytes(path.read_bytes()))
+
+
+def _source_tree_sha256(root: Path) -> str:
+    """Hash Python source paths and bytes deterministically."""
+    if not root.is_dir():
+        raise FileNotFoundError(root)
+    digest = hashlib.sha256()
+    files = sorted(path for path in root.rglob("*.py") if path.is_file())
+    if not files:
+        raise ValueError(f"No Python source files found under {root}")
+    for path in files:
+        relative = path.relative_to(root).as_posix().encode("utf-8")
+        digest.update(relative)
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def build_specification_lock(
+    *,
+    project_config: Path,
+    models_config: Path,
+    publication_config: Path,
+    label: str,
+    analysis_code_root: Path = Path("src/wage_transmission"),
+) -> SpecificationLock:
+    """Build the deterministic specification-lock payload for three configuration files."""
+    clean_label = label.strip()
+    if not clean_label:
+        raise ValueError("Specification-lock label cannot be empty.")
+    for path in (project_config, models_config, publication_config):
+        if not path.is_file():
+            raise FileNotFoundError(path)
+    return SpecificationLock(
+        schema_version=1,
+        label=clean_label,
+        created_with_package_version=__version__,
+        analysis_code_root=analysis_code_root.as_posix(),
+        analysis_code_sha256=_source_tree_sha256(analysis_code_root),
+        project_config=_file_lock(project_config),
+        models_config=_file_lock(models_config),
+        publication_config=_file_lock(publication_config),
+    )
+
+
+def write_specification_lock(lock: SpecificationLock, output: Path) -> Path:
+    """Write an immutable lock; an existing different lock is never overwritten."""
+    candidate = json.dumps(asdict(lock), indent=2, sort_keys=True) + "\n"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    if output.exists():
+        existing = output.read_text(encoding="utf-8")
+        if existing != candidate:
+            raise FileExistsError(
+                f"Specification lock already exists with different content: {output}"
+            )
+        return output
+    # LF explicitly: artefact bytes are hashed, so they must not depend on the platform.
+    output.write_text(candidate, encoding="utf-8", newline="\n")
+    return output
+
+
 def _require_mapping(value: Any, *, label: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError(f"{label} must be a JSON object.")
     return {str(key): item for key, item in value.items()}
+
+
+def _locked_file_from_payload(value: Any, *, label: str) -> LockedFile:
+    payload = _require_mapping(value, label=label)
+    path = payload.get("path")
+    digest = payload.get("sha256")
+    if not isinstance(path, str) or not isinstance(digest, str):
+        raise ValueError(f"{label} must contain string path and sha256 fields.")
+    return LockedFile(path=path, sha256=digest)
+
+
+def read_specification_lock(path: Path) -> SpecificationLock:
+    """Read and type-check a specification lock from disk."""
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    payload = _require_mapping(raw, label="specification lock")
+    label = payload.get("label")
+    version = payload.get("created_with_package_version")
+    schema_version = payload.get("schema_version")
+    if (
+        not isinstance(label, str)
+        or not isinstance(version, str)
+        or not isinstance(schema_version, int)
+    ):
+        raise ValueError("Specification lock has invalid scalar fields.")
+    analysis_code_root = payload.get("analysis_code_root")
+    analysis_code_sha256 = payload.get("analysis_code_sha256")
+    if not isinstance(analysis_code_root, str) or not isinstance(analysis_code_sha256, str):
+        raise ValueError("Specification lock has invalid analysis-code fields.")
+    return SpecificationLock(
+        schema_version=schema_version,
+        label=label,
+        created_with_package_version=version,
+        analysis_code_root=analysis_code_root,
+        analysis_code_sha256=analysis_code_sha256,
+        project_config=_locked_file_from_payload(
+            payload.get("project_config"), label="project_config"
+        ),
+        models_config=_locked_file_from_payload(
+            payload.get("models_config"), label="models_config"
+        ),
+        publication_config=_locked_file_from_payload(
+            payload.get("publication_config"), label="publication_config"
+        ),
+    )
+
+
+def verify_specification_lock(lock: SpecificationLock, *, root: Path = Path(".")) -> None:
+    """Fail if locked configuration, code, or package version changed after pre-registration."""
+    mismatches: list[str] = []
+    if lock.created_with_package_version != __version__:
+        mismatches.append(f"package_version:{lock.created_with_package_version}!={__version__}")
+    code_root = root / lock.analysis_code_root
+    try:
+        code_hash = _source_tree_sha256(code_root)
+    except (FileNotFoundError, ValueError):
+        mismatches.append(f"missing_code_root:{lock.analysis_code_root}")
+    else:
+        if code_hash != lock.analysis_code_sha256:
+            mismatches.append(f"code_hash_mismatch:{lock.analysis_code_root}")
+    for item in (lock.project_config, lock.models_config, lock.publication_config):
+        path = root / item.path
+        if not path.is_file():
+            mismatches.append(f"missing:{item.path}")
+            continue
+        actual = sha256_bytes(path.read_bytes())
+        if actual != item.sha256:
+            mismatches.append(f"hash_mismatch:{item.path}")
+    if mismatches:
+        raise ValueError("Specification lock verification failed: " + ", ".join(mismatches))
 
 
 def _load_json_mapping(path: Path) -> dict[str, Any]:
@@ -347,10 +504,24 @@ def build_publication_dossier(
     country_results: Mapping[str, Path],
     cross_country_results: Mapping[str, Path],
     decomposition_summary: Path | None,
+    specification_lock: Path | None,
     publication_config: PublicationConfig,
     output_dir: Path,
+    root: Path = Path("."),
 ) -> PublicationDossierResult:
-    """Build the machine-generated result dossier for one verified result vintage."""
+    """Build paper-facing tables, verifying the specification lock when one is supplied.
+
+    The lock lives with the manuscripts, outside version control, so a clean checkout does not
+    carry one and ``specification_lock`` may be None. When it is, the dossier is still built and
+    still hashes every input and output, but it records that no lock was verified. A dossier
+    without a verified lock is auditable; it is not evidence of a pre-results commitment, and the
+    manifest says which of the two it is.
+    """
+    lock = None
+    if specification_lock is not None:
+        lock = read_specification_lock(specification_lock)
+        verify_specification_lock(lock, root=root)
+
     required_drivers = {publication_config.primary_driver, *publication_config.secondary_drivers}
     missing_country = required_drivers.difference(country_results)
     missing_cross = required_drivers.difference(cross_country_results)
@@ -409,6 +580,9 @@ def build_publication_dossier(
     if decomposition_summary is not None:
         inputs[str(decomposition_summary)] = sha256_bytes(decomposition_summary.read_bytes())
 
+    if specification_lock is not None:
+        inputs[str(specification_lock)] = sha256_bytes(specification_lock.read_bytes())
+
     outputs = [core_path, reliability_path, cross_path, markdown_path]
     if decomposition_path is not None:
         outputs.append(decomposition_path)
@@ -416,6 +590,8 @@ def build_publication_dossier(
     write_json(
         {
             "package_version": __version__,
+            "specification_lock_verified": lock is not None,
+            "specification_lock_label": lock.label if lock is not None else None,
             "primary_country": publication_config.primary_country,
             "primary_driver": publication_config.primary_driver,
             "primary_estimand": publication_config.primary_estimand,
