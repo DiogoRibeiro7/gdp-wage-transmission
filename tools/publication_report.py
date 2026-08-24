@@ -224,7 +224,8 @@ def _multiplier_note(core: pd.DataFrame) -> str:
         r"Each $|\hat{\gamma}|<1$, so the ratio is finite and the implied adjustment "
         "is stable, but its interval is a delta-method approximation. With a denominator "
         "estimated from the same small sample, that approximation degrades as "
-        r"$1-\hat{\gamma}$ approaches zero, and a Fieller or bootstrap interval would be "
+        r"$1-\hat{\gamma}$ approaches zero; a Fieller \citep{fieller1954interval} or "
+        "bootstrap interval would be "
         "a more reliable guide than the reported one."
     )
 
