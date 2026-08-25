@@ -1023,9 +1023,9 @@ def _dynamic_panel_table(dossier_dir: Path) -> str | None:
             "$\\Theta_{\\mathrm{panel}}=(\\sum_j\\hat{\\beta}_j)/(1-\\hat{\\gamma})$."
         ),
         label="tab:dynamic-panel",
-        columns="p{1.95cm}p{1.5cm}lrrrrrll",
+        columns="p{1.9cm}p{1.45cm}lrrrrrll",
         header=(
-            r"Driver & Fixed effects & Est. & $N$ & Obs. & $\hat{\gamma}$ & "
+            r"Driver & Fixed effects & Est. & Countries & Reg.\ $N$ & $\hat{\gamma}$ & "
             r"$\sum\hat{\beta}_j$ & $\hat{\Theta}$ & Bootstrap 95\% CI & Gate"
         ),
         rows=rows,
