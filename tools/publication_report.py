@@ -1149,7 +1149,7 @@ def _validation_tables(dossier_dir: Path) -> list[tuple[str, str]]:
                         "moving-block replications at block length "
                         f"{int(first.get('block_length', 0))}, resampling complete cross-sections, "
                         "rebuilding lags after concatenation and re-estimating the bias-corrected "
-                        "model in every replication. The percentile interval is the pre-specified "
+                        "model in every replication. The percentile interval is the prospectively specified "
                         "one. The reverse-percentile (basic) interval reflects the resampling "
                         "distribution about the point estimate, "
                         "$[2\\hat{\\Theta}-q_{0.975},\\ 2\\hat{\\Theta}-q_{0.025}]$, which "
@@ -1344,7 +1344,9 @@ def _dynamic_panel_note(frame: pd.DataFrame, dossier_dir: Path) -> str:
         .iterrows()
     ]
     block_text = (
-        "Frozen block-length sensitivities on the primary driver: " + "; ".join(block_parts) + ". "
+        "Prospectively specified block-length sensitivities on the primary driver: "
+        + "; ".join(block_parts)
+        + ". "
         if block_parts
         else " "
     )
@@ -1358,7 +1360,7 @@ def _dynamic_panel_note(frame: pd.DataFrame, dossier_dir: Path) -> str:
         }
     )
     gate_text = (
-        "No specification failed a pre-specified estimation gate."
+        "No specification failed a prospectively specified estimation gate."
         if not failures
         else "Failed estimation gates, recorded rather than dropped: "
         + _escape_latex(", ".join(failures).replace("_", " "))
@@ -1366,7 +1368,7 @@ def _dynamic_panel_note(frame: pd.DataFrame, dossier_dir: Path) -> str:
     )
     if _interval_is_calibrated(dossier_dir) is not True:
         gate_text += (
-            " ``Estimation only'' in the gate column means exactly that: the pre-specified "
+            " ``Estimation only'' in the gate column means exactly that: the prospectively specified "
             "estimation gates passed and the interval's calibration failed. The point estimates "
             "stand; the intervals are reported for completeness and are not valid 95\\% "
             "intervals, so no inferential statement in this paper rests on one."
@@ -1406,8 +1408,8 @@ def _dynamic_panel_note(frame: pd.DataFrame, dossier_dir: Path) -> str:
         f"against a point estimate of {_fmt_float(record['corrected_multiplier'])}, and that gap "
         "is a property of the resampling scheme, not additional evidence. Because a displaced "
         "resampling distribution is what the reverse-percentile (basic) interval exists for, it "
-        "is given beside the pre-specified percentile interval: on the primary specification it "
-        f"is {_reverse_interval(record)}. The percentile interval remains the pre-specified "
+        "is given beside the prospectively specified percentile interval: on the primary specification it "
+        f"is {_reverse_interval(record)}. The percentile interval remains the prospectively specified "
         f"choice. {_coverage_warning(dossier_dir, float(record['corrected_persistence']))}"
         "The denominator is well away from zero throughout: "
         f"$1-\\hat{{\\gamma}}$ has a bootstrap median of "
