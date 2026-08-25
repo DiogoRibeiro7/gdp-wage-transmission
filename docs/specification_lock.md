@@ -71,6 +71,18 @@ v0.7.1, on a sample that overlaps this one almost completely; a new data vintage
 history. The correct description is a prospectively locked follow-up analysis of a previously
 analysed sample.
 
+### v0.8.1 deliberately has no lock of its own
+
+v0.8.1 corrects the manuscript and the formatter. It changes no file under `src/wage_transmission`
+and no configuration file, so the analysis-tree digest is unchanged at
+`0b14fbe21152bf884f948cefb71ca225d8b821de67495c43e7ec96ee6602b559` and no estimate moves.
+
+No new lock was written, and that is deliberate. A lock is evidence of a commitment made *before*
+results were seen; one written now would be evidence of nothing. The v0.8.0 lock remains the
+record of what produced the estimates. It binds the package version, so it verifies against a
+v0.8.0 checkout and not against a later one — which is the behaviour a version-binding lock should
+have, and the reason a reproduction should check out the tag rather than the branch.
+
 ## Primary estimand
 
 The pre-specified primary Portugal specification pairs annual real average wages with GDP per person

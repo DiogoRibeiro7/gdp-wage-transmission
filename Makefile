@@ -1,4 +1,4 @@
-.PHONY: help install hooks format format-check lint typecheck test coverage check build clean integrity release-manifest release-manifest-verify release-archive paper-preflight spec-lock paper2-lock paper2-lock-verify paper-packet paper-audit notebooks demo freeze-plan freeze-fetch freeze-audit snapshot-registry publication-gate publication-dossier build-vintage freeze-vintage verify-vintage wage-distribution-breaks
+.PHONY: help install hooks format format-check lint typecheck test coverage check build clean integrity release-manifest release-manifest-verify release-archive paper-pdf paper-preflight spec-lock paper2-lock paper2-lock-verify paper-packet paper-audit notebooks demo freeze-plan freeze-fetch freeze-audit snapshot-registry publication-gate publication-dossier build-vintage freeze-vintage verify-vintage wage-distribution-breaks
 
 # Default target: list the documented entry points.
 help:
@@ -68,6 +68,13 @@ paper-packet: ## Build the paper-facing report packet from a dossier
 	poetry run python tools/publication_report.py build \
 		--dossier results/vintages/$(VINTAGE)/publication_dossier \
 		--paper-dir paper
+
+paper-pdf: ## Compile the manuscript reproducibly, timestamped from VINTAGE
+	@test -n "$(VINTAGE)" || (echo "Usage: make paper-pdf VINTAGE=YYYY-MM-DD" && exit 2)
+	cd paper && \
+	  SOURCE_DATE_EPOCH=$$(python -c "import datetime,sys;print(int(datetime.datetime.fromisoformat(sys.argv[1]).replace(tzinfo=datetime.timezone.utc).timestamp()))" $(VINTAGE)) \
+	  FORCE_SOURCE_DATE=1 \
+	  latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex
 
 paper-preflight: ## Fail if the compiled manuscript runs past the margin
 	poetry run python tools/publication_report.py preflight --paper-dir paper

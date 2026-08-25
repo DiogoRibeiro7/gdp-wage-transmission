@@ -1,5 +1,100 @@
 # Changelog
 
+## v0.8.1 — what the panel interval is actually worth — 2026-08-25
+
+A review of the v0.8.0 manuscript found four false or unsupported statements and asked for the
+evidence behind a fifth. Finding it changed the paper's headline claim, so this release corrects
+the manuscript and adds the study that forced the correction. **No estimate changed**: the locked
+analysis package is untouched, the v0.8.0 specification lock still verifies against a v0.8.0
+checkout, and the dossier is the same one v0.8.0 published.
+
+### The interval is not a 95% interval
+
+v0.8.0 admitted that gluing bootstrap blocks together attenuates persistence, moving the median
+replication from 0.551 to 0.510, and then reported an ordinary percentile interval anyway. The
+review asked for a reverse-percentile interval, a residual bootstrap, or coverage evidence.
+
+`tools/dynamic_panel_validation.py` supplies the evidence, and it is unfavourable in both
+directions. Against panels drawn from the estimator's own model at this sample's dimensions, with
+a common annual component in the errors:
+
+| True γ | Percentile coverage | Reverse-percentile coverage |
+| ---: | ---: | ---: |
+| 0.15 | 84.7% | 77.3% |
+| 0.45 | 58.0% | 41.3% |
+
+Nominal coverage is 95%. **Neither interval attains it**, and reflecting a displaced resampling
+distribution moves the interval away from the truth rather than towards it, so the suggested
+remedy is worse than what was reported. The pre-specified percentile interval is the better of the
+two and is still too narrow, by an amount that grows with persistence.
+
+The estimated persistence is 0.146, closest to the 0.15 row, so the interval [0.322, 0.744] should
+be read as a nominal-95% interval covering about 85%. The abstract, the results section, the
+conclusion, the limitations and the table note all now say so, and the reverse-percentile interval
+is reported beside the percentile one throughout.
+
+### Four statements that were wrong
+
+- **"The only interval excluding both zero and one."** Sweden's country interval, [0.452, 0.832],
+  also excludes both. The claim is now that the panel interval and Sweden's are the two that do.
+- **A stale horizon-eight interval.** The discussion quoted [-2.330, 2.859] while the table beside
+  it read [-2.079, 3.171]; the prose value was left over from the 199-replication vintage. The fix
+  is structural: `paper/generated/values.tex` now emits every number the prose quotes as a LaTeX
+  macro generated from the dossier, so prose and tables cannot drift apart again.
+- **"The result depends on the year effects."** Both corrected primary-driver intervals exclude
+  zero and one — [0.322, 0.744] with year effects, [0.032, 0.658] without. The magnitude and the
+  precision depend on the fixed effects; the qualitative verdict does not.
+- **τ² promised but missing.** Section 5.4 said both τ² and I² were reported; the table had only
+  I². τ² is not a column of the dossier CSV, but the CSV records the path and digest of the summary
+  artefact that holds it, so the formatter now reads it the same hash-verified way the
+  country-estimates table already reads its source. τ² = 0.0848 on the primary driver.
+
+### The maintained exogeneity condition, stated
+
+"Not causal" was doing too much work. Holding the driver path fixed while resampling residuals
+imposes that productivity is **strictly exogenous** with respect to the errors, conditional on the
+country and year effects — the same condition the analytical corrections assume. Section 5.5 now
+states it, says the paper does not defend it, and identifies what the estimate supports if it
+fails: a linear projection, not a corrected structural coefficient. De Vos, Everaert and Ruyssen
+(2015), which extends the simulation correction to unbalanced panels with cross-sectionally
+dependent errors, is cited where it belongs.
+
+### The bias claim, measured properly
+
+v0.8.0 said the correction removes 88–97% of the bias, from a simulation that had no year effects
+and so did not match the specification it is applied to. Under the estimated specification, with
+300 replications per grid point, it removes **90–98%** across true persistence from 0.1 to 0.7,
+and the uncorrected bias tracks -(1+γ)/T closely. Appendix B reports the design, calibration,
+solver settings and replication counts rather than asserting the result.
+
+### Structure and production
+
+- Results is reorganised so each table follows the prose that reads it, with float barriers
+  between subsections. Tables no longer separate a subsection from its own discussion.
+- The structural-break table was in the **Data** section, before the method producing it is
+  introduced. It was inserted by matching `\subsection{Coverage}`, of which there are two. It is
+  now its own Results subsection.
+- The reliability table's narrow column was hyphenating "not eligi-ble"; widened.
+- The title returns to **Incomplete Wage Transmission in Portugal and Selected Advanced
+  Economies**.
+- The PDF's creation date was **2025**-08-25 at a local offset: `SOURCE_DATE_EPOCH` was typed by
+  hand and off by exactly one year. `make paper-pdf VINTAGE=YYYY-MM-DD` now derives it from the
+  vintage and sets `FORCE_SOURCE_DATE`, so the opportunity to mistype it is gone. The forest plot
+  no longer embeds a wall-clock stamp either.
+- `OECD (nd)` was BibTeX eating the periods in an unbraced `n.d.`, and `apalike` never printing a
+  bare `url`. Braced, with the URL and an access date moved into the note.
+
+### Validation
+
+- 166 tests pass; `ruff`, `ruff format` and `mypy --strict` clean.
+- Manuscript: 26 pages, preflight clean, packet audit clean, 34 references all cited, no undefined
+  references or citations.
+- The v0.8.0 specification lock still verifies against a v0.8.0 checkout, analysis-tree digest
+  `0b14fbe21152bf884f948cefb71ca225d8b821de67495c43e7ec96ee6602b559`. Because the lock binds the
+  package version, it does not verify against a 0.8.1 checkout — correctly, since it records what
+  produced the estimates, and the estimates come from 0.8.0.
+
+
 ## v0.8.0 — a panel estimate that answers the paper's question — 2026-08-25
 
 The previous release reported a pooled panel coefficient of 0.327 and placed it beside a median

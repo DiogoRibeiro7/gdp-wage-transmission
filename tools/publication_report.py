@@ -371,7 +371,7 @@ def _reliability_table(reliability: pd.DataFrame, core: pd.DataFrame) -> str:
     return _table_wrapper(
         caption="Supporting models, their estimates, and their pre-specified reliability gates.",
         label="tab:reliability-gates",
-        columns="p{2.3cm}p{2.2cm}lp{1.5cm}p{3.6cm}",
+        columns="p{2.2cm}p{2.1cm}lp{2.05cm}p{3.35cm}",
         header="Driver & Model & Estimate & Claim status & Gate result",
         rows=rows,
         note=(
@@ -630,12 +630,38 @@ def _forest_plot(cross: pd.DataFrame, dossier_dir: Path, output: Path) -> Path |
         axes.spines[spine].set_visible(False)
     figure.tight_layout()
     output.parent.mkdir(parents=True, exist_ok=True)
-    figure.savefig(output, bbox_inches="tight")
+    # Omit the wall-clock stamp: the figure is hashed into the packet manifest and
+    # embedded in the PDF, so its bytes must not depend on when it was drawn.
+    figure.savefig(output, bbox_inches="tight", metadata={"CreationDate": None})
     plt.close(figure)
     return output
 
 
-def _cross_country_table(cross: pd.DataFrame) -> str:
+def _verified_summary(cross: pd.DataFrame, dossier_dir: Path, driver: str) -> dict[str, Any]:
+    """Read one driver's cross-country summary JSON, checking the digest the dossier recorded.
+
+    The dossier CSV carries the headline summary numbers but not every field the estimator
+    produced. Rather than widen the locked dossier writer after results were seen, the extra
+    fields are read from the artefact the dossier already points at and hashes.
+    """
+    matched = cross.loc[cross["driver"] == driver]
+    if matched.empty or "summary_path" not in cross.columns:
+        return {}
+    row = matched.iloc[0]
+    path = Path(str(row["summary_path"]))
+    if not path.is_file():
+        path = dossier_dir / path.name
+    if not path.is_file():
+        return {}
+    recorded = str(row.get("summary_sha256") or "")
+    if recorded and sha256_file(path) != recorded:
+        raise ValueError(
+            f"Cross-country summary at {path} does not match the digest recorded in the dossier."
+        )
+    return _load_json_object(path)
+
+
+def _cross_country_table(cross: pd.DataFrame, dossier_dir: Path) -> str:
     required = {
         "driver",
         "n_countries",
@@ -649,25 +675,32 @@ def _cross_country_table(cross: pd.DataFrame) -> str:
         raise ValueError(f"cross_country_summary.csv missing columns: {sorted(missing)}")
     rows: list[str] = []
     for _, row in cross.iterrows():
+        driver = str(row["driver"])
+        summary = _verified_summary(cross, dossier_dir, driver)
         rows.append(
-            "{} & {} & {} & {} & {} & {}\\% \\\\".format(
-                _escape_latex(_driver_label(str(row["driver"]))),
+            "{} & {} & {} & {} & {} & {} & {}\\% \\\\".format(
+                _escape_latex(_driver_label(driver)),
                 int(row["n_countries"]),
                 _fmt_float(row["median_cumulative_transmission"]),
                 _fmt_float(row["random_effect_estimate"]),
                 _fmt_float(row["random_effect_std_error"]),
+                _fmt_float(summary.get("tau_squared"), 4),
                 _fmt_float(row["i_squared_percent"], 1),
             )
         )
     return _table_wrapper(
         caption="Cross-country context for cumulative wage transmission.",
         label="tab:cross-country",
-        columns="lrrrrr",
-        header="Driver & Countries & Median & RE estimate & RE SE & $I^2$",
+        columns="lrrrrrr",
+        header=r"Driver & Countries & Median & RE estimate & RE SE & $\tau^2$ & $I^2$",
         rows=rows,
         note=(
             "Country-specific estimates are the primary cross-country object. "
-            "The random-effects estimate is a secondary summary and should be read together with heterogeneity."
+            "The random-effects estimate is a secondary summary and should be read together "
+            "with heterogeneity. $\\tau^2$ is the DerSimonian--Laird moment estimator of the "
+            "between-country variance, truncated at zero, and $I^2$ the share of observed "
+            "dispersion in excess of sampling error. Both are computed under the independence "
+            "assumption the main text questions."
         ),
     )
 
@@ -960,6 +993,155 @@ _FIXED_EFFECT_LABEL = {
 _ESTIMATOR_LABEL = {"lsdv": "LSDV", "corrected": "LSDVC"}
 
 
+def _validation_tables(dossier_dir: Path) -> list[tuple[str, str]]:
+    """Render the Monte Carlo evidence for the estimator and for its interval.
+
+    The manuscript asserts that the bias correction works and that the percentile interval is
+    usable despite a displaced resampling distribution. Neither can be checked from the
+    estimates, so both are measured against panels with known parameters and reported here.
+    """
+    path = dossier_dir / "dynamic_panel_validation.json"
+    if not path.is_file():
+        return []
+    payload = _load_json_object(path)
+    if payload.get("prespecified") is not False:
+        raise ValueError(
+            f"{path} does not record prespecified=false. This is a post-hoc validation study "
+            "and must not be presented as part of the confirmatory hierarchy."
+        )
+    design = payload.get("design") or {}
+    calibration = payload.get("calibration") or {}
+    tables: list[tuple[str, str]] = []
+
+    bias_rows = payload.get("bias_study") or []
+    if bias_rows:
+        rows = [
+            "{} & {} & {} & {} & {} & {} & {} & {} \\\\".format(
+                _fmt_float(row["true_persistence"], 2),
+                _fmt_float(row["true_multiplier"]),
+                _fmt_float(row["lsdv_persistence_bias"], 4),
+                _fmt_float(row["nickell_approximation"], 4),
+                _fmt_float(row["corrected_persistence_bias"], 4),
+                _fmt_pct_fraction(row["persistence_bias_removed"]),
+                _fmt_float(row["corrected_multiplier_bias"], 4),
+                int(row["completed"]),
+            )
+            for row in bias_rows
+        ]
+        tables.append(
+            (
+                "table_validation_bias.tex",
+                _table_wrapper(
+                    caption=(
+                        "Monte Carlo bias of the dynamic panel estimator, at the estimation "
+                        "sample's dimensions."
+                    ),
+                    label="tab:validation-bias",
+                    columns="rrrrrrrr",
+                    header=(
+                        r"True $\gamma$ & True $\Theta$ & LSDV bias & $-(1+\gamma)/T$ & "
+                        r"LSDVC bias & Removed & LSDVC $\Theta$ bias & Draws"
+                    ),
+                    rows=rows,
+                    note=(
+                        "Panels are drawn from the estimator's own model at the dimensions of the "
+                        f"estimation sample: {int(design.get('n_countries', 0))} countries, "
+                        f"{int(design.get('n_growth_years', 0))} annual growth observations, one "
+                        "country a year short, country and year effects, "
+                        f"{design.get('driver_lags', 2)} driver lags and "
+                        f"{design.get('wage_lags', 1)} dependent lag. Driver growth has mean "
+                        f"{_fmt_float(calibration.get('driver_mean'), 4)} and within-year standard "
+                        f"deviation {_fmt_float(calibration.get('driver_sd'), 4)} with a common "
+                        "annual component of standard deviation "
+                        f"{_fmt_float(calibration.get('driver_common_sd'), 4)}; errors have "
+                        f"standard deviation {_fmt_float(calibration.get('error_sd'), 4)} with "
+                        f"{_fmt_pct_fraction(calibration.get('error_common_share'))} of their "
+                        "variance from a component common to every country in a year, so the "
+                        "cross-sectional dependence the bootstrap is built for is present. "
+                        "Driver coefficients are held at "
+                        f"$({', '.join(_fmt_float(value) for value in design.get('beta', []))})$. "
+                        "The correction uses "
+                        f"{int(design.get('bias_correction_draws_bias_study', 0))} simulation "
+                        "draws per evaluation and at most "
+                        f"{int(design.get('bias_correction_max_iterations', 0))} fixed-point "
+                        "iterations, stopping at a tolerance of $10^{-7}$; every draw converged. "
+                        "``Removed'' is one minus the ratio of the corrected to the uncorrected "
+                        "bias, which is unstable where the uncorrected bias is small, so the "
+                        "absolute biases are given beside it. The driver path is strictly "
+                        "exogenous by construction, so this measures recovery under correct "
+                        "specification and says nothing about endogeneity."
+                    ),
+                    size="scriptsize",
+                ),
+            )
+        )
+
+    coverage_rows = payload.get("coverage_study") or []
+    if coverage_rows:
+        rows = [
+            "{} & {} & {} & {} & {} & {} & {} & {} \\\\".format(
+                _fmt_float(row["true_persistence"], 2),
+                _fmt_float(row["true_multiplier"]),
+                _fmt_pct_fraction(row["percentile_coverage"]),
+                _fmt_float(row["percentile_mean_width"]),
+                _fmt_pct_fraction(row["reverse_percentile_coverage"]),
+                _fmt_float(row["reverse_percentile_mean_width"]),
+                _fmt_float(row["median_displacement"], 4),
+                int(row["completed"]),
+            )
+            for row in coverage_rows
+        ]
+        first = coverage_rows[0]
+        tables.append(
+            (
+                "table_validation_coverage.tex",
+                _table_wrapper(
+                    caption=(
+                        "Monte Carlo coverage of the moving-block bootstrap intervals for "
+                        "$\\Theta_{\\mathrm{panel}}$."
+                    ),
+                    label="tab:validation-coverage",
+                    columns="rrrrrrrr",
+                    header=(
+                        r"True $\gamma$ & True $\Theta$ & Pctl.\ cover & Pctl.\ width & "
+                        r"Rev.\ cover & Rev.\ width & Displacement & Draws"
+                    ),
+                    rows=rows,
+                    note=(
+                        "Same data-generating process as Table~\\ref{tab:validation-bias}. Each "
+                        f"draw runs the full procedure: {int(first.get('bootstrap_replications', 0))} "
+                        "moving-block replications at block length "
+                        f"{int(first.get('block_length', 0))}, resampling complete cross-sections, "
+                        "rebuilding lags after concatenation and re-estimating the bias-corrected "
+                        "model in every replication. The percentile interval is the pre-specified "
+                        "one. The reverse-percentile (basic) interval reflects the resampling "
+                        "distribution about the point estimate, "
+                        "$[2\\hat{\\Theta}-q_{0.975},\\ 2\\hat{\\Theta}-q_{0.025}]$, which "
+                        "is the standard response to a displaced bootstrap distribution. "
+                        "``Displacement'' is the mean gap between the median replication and the "
+                        "point estimate, negative where block concatenation attenuates "
+                        "persistence. Nominal coverage is "
+                        f"{_fmt_pct_fraction(first.get('nominal_coverage'))}. The bootstrap "
+                        "replication count here is below the "
+                        "4,999 used for the reported estimates, because coverage requires the "
+                        "whole procedure to be repeated; it affects interval resolution, not the "
+                        "comparison between the two interval types."
+                    ),
+                    size="scriptsize",
+                ),
+            )
+        )
+    return tables
+
+
+def _reverse_interval(record: pd.Series) -> str:
+    """Reverse-percentile (basic) interval, reflecting the draws about the point estimate."""
+    estimate = float(record["corrected_multiplier"])
+    low = float(record["corrected_multiplier_ci_low"])
+    high = float(record["corrected_multiplier_ci_high"])
+    return f"$[{_fmt_float(2.0 * estimate - high)},\\ {_fmt_float(2.0 * estimate - low)}]$"
+
+
 def _dynamic_panel_table(dossier_dir: Path) -> str | None:
     """Render the frozen dynamic panel: the same cumulative multiplier, estimated pooled.
 
@@ -1029,12 +1211,36 @@ def _dynamic_panel_table(dossier_dir: Path) -> str | None:
             r"$\sum\hat{\beta}_j$ & $\hat{\Theta}$ & Bootstrap 95\% CI & Gate"
         ),
         rows=rows,
-        note=_dynamic_panel_note(frame),
+        note=_dynamic_panel_note(frame, dossier_dir),
         size="scriptsize",
     )
 
 
-def _dynamic_panel_note(frame: pd.DataFrame) -> str:
+def _coverage_warning(dossier_dir: Path, persistence: float) -> str:
+    """Quote the measured coverage at the simulated persistence closest to the estimate."""
+    path = dossier_dir / "dynamic_panel_validation.json"
+    if not path.is_file():
+        return (
+            "Its coverage has not been measured on this vintage, so its nominal level should not "
+            "be taken at face value. "
+        )
+    rows = _load_json_object(path).get("coverage_study") or []
+    if not rows:
+        return ""
+    nearest = min(rows, key=lambda row: abs(float(row["true_persistence"]) - persistence))
+    return (
+        "Neither interval reaches its nominal level. Simulation at a true persistence of "
+        f"{_fmt_float(nearest['true_persistence'], 2)}, closest to the estimate here, gives the "
+        f"percentile interval {_fmt_pct_fraction(nearest['percentile_coverage'])} coverage and "
+        f"the reverse-percentile interval "
+        f"{_fmt_pct_fraction(nearest['reverse_percentile_coverage'])}, against a nominal "
+        f"{_fmt_pct_fraction(nearest['nominal_coverage'])}; both deteriorate as persistence "
+        "rises. The intervals here are therefore too narrow. "
+        "Appendix~\\ref{sec:validation} reports the full study. "
+    )
+
+
+def _dynamic_panel_note(frame: pd.DataFrame, dossier_dir: Path) -> str:
     """Everything a reader needs to interpret the table, generated from the same artefact."""
     primary = frame.loc[
         (frame["role"] == "primary") & (frame["driver"] == "productivity_per_worker")
@@ -1107,7 +1313,11 @@ def _dynamic_panel_note(frame: pd.DataFrame) -> str:
         "persistence is attenuated: the median replication gives "
         f"$\\hat{{\\Theta}}={_fmt_float(record['corrected_multiplier_bootstrap_median'])}$ "
         f"against a point estimate of {_fmt_float(record['corrected_multiplier'])}, and that gap "
-        "is a property of the resampling scheme, not additional evidence. "
+        "is a property of the resampling scheme, not additional evidence. Because a displaced "
+        "resampling distribution is what the reverse-percentile (basic) interval exists for, it "
+        "is given beside the pre-specified percentile interval: on the primary specification it "
+        f"is {_reverse_interval(record)}. The percentile interval remains the pre-specified "
+        f"choice. {_coverage_warning(dossier_dir, float(record['corrected_persistence']))}"
         "The denominator is well away from zero throughout: "
         f"$1-\\hat{{\\gamma}}$ has a bootstrap median of "
         f"{_fmt_float(record['one_minus_persistence_p50'])}, a 95\\% range of "
@@ -1126,6 +1336,97 @@ def _dynamic_panel_note(frame: pd.DataFrame) -> str:
         f"time dimension, and {int(record['n_effective_years'])} effective years is "
         f"not enough for them to replace the bootstrap. {gate_text}"
     )
+
+
+def _values_file(
+    core: pd.DataFrame,
+    cross: pd.DataFrame,
+    dossier_dir: Path,
+) -> str:
+    """Emit dossier numbers as LaTeX macros so prose cannot drift from the tables.
+
+    A horizon-eight interval typed into the discussion survived an entire vintage after the
+    table beside it had been regenerated at a higher replication count. Nothing tied the two
+    together. These macros do.
+    """
+    lines = [
+        "% AUTO-GENERATED. DO NOT EDIT.",
+        "% Values quoted in prose. Defined here so they cannot drift from the tables.",
+    ]
+
+    def define(name: str, value: str) -> None:
+        lines.append(f"\\newcommand{{\\{name}}}{{{value}}}")
+
+    def interval(low: Any, high: Any, digits: int = 3) -> str:
+        return f"$[{_fmt_float(low, digits)},\\ {_fmt_float(high, digits)}]$"
+
+    primary = core.loc[core["driver"] == "productivity_per_worker"]
+    if not primary.empty:
+        row = primary.iloc[0]
+        define("valPrtTheta", _fmt_float(row["distributed_lag_cumulative"]))
+        define("valPrtSe", _fmt_float(row["distributed_lag_std_error"]))
+        define("valPrtCi", interval(row["distributed_lag_ci_low"], row["distributed_lag_ci_high"]))
+        define("valPrtRegN", str(int(row["n_levels"]) - LOST_TO_LAGS))
+
+    results = _verified_model_results(core, "productivity_per_worker")
+    if results:
+        points = {int(p["horizon"]): p for p in results.get("local_projections") or []}
+        bands = {int(b["horizon"]): b for b in results.get("local_projection_bands") or []}
+        longest = max(points) if points else None
+        if longest is not None:
+            define("valLpHorizon", str(longest))
+            define("valLpHac", interval(points[longest]["lower_95"], points[longest]["upper_95"]))
+            if longest in bands:
+                define(
+                    "valLpBootstrap",
+                    interval(bands[longest]["lower_95"], bands[longest]["upper_95"]),
+                )
+
+    cross_primary = cross.loc[cross["driver"] == "productivity_per_worker"]
+    if not cross_primary.empty:
+        row = cross_primary.iloc[0]
+        estimate = float(row["random_effect_estimate"])
+        std_error = float(row["random_effect_std_error"])
+        define("valReEstimate", _fmt_float(estimate))
+        define("valReSe", _fmt_float(std_error))
+        define("valReCi", interval(estimate - 1.96 * std_error, estimate + 1.96 * std_error))
+        define("valMedianCountry", _fmt_float(row["median_cumulative_transmission"]))
+        define("valISquared", _fmt_pct_fraction(float(row["i_squared_percent"]) / 100.0))
+        summary = _verified_summary(cross, dossier_dir, "productivity_per_worker")
+        if "tau_squared" in summary:
+            define("valTauSquared", _fmt_float(summary["tau_squared"], 4))
+
+    panel_path = dossier_dir / "dynamic_panel_summary.csv"
+    if panel_path.is_file():
+        panel = pd.read_csv(panel_path)
+        for driver, prefix in (
+            ("productivity_per_worker", "valPanelPrimary"),
+            ("productivity", "valPanelHour"),
+        ):
+            for effects, suffix in (("country_and_year", "Year"), ("country", "Country")):
+                matched = panel.loc[
+                    (panel["driver"] == driver)
+                    & (panel["fixed_effects"] == effects)
+                    & (panel["role"].isin(["primary", "sensitivity_fixed_effects"]))
+                ]
+                if matched.empty:
+                    continue
+                record = matched.iloc[0]
+                estimate = float(record["corrected_multiplier"])
+                low = float(record["corrected_multiplier_ci_low"])
+                high = float(record["corrected_multiplier_ci_high"])
+                define(f"{prefix}{suffix}Theta", _fmt_float(estimate))
+                define(f"{prefix}{suffix}Ci", interval(low, high))
+                define(
+                    f"{prefix}{suffix}Reverse",
+                    interval(2.0 * estimate - high, 2.0 * estimate - low),
+                )
+                define(
+                    f"{prefix}{suffix}Median",
+                    _fmt_float(record["corrected_multiplier_bootstrap_median"]),
+                )
+                define(f"{prefix}{suffix}Obs", str(int(record["nobs"])))
+    return "\n".join(lines) + "\n"
 
 
 def _primary_results_text(
@@ -1254,7 +1555,9 @@ def build_paper_packet(*, dossier_dir: Path, paper_dir: Path) -> PaperPacket:
     reliability_table = _write(
         generated / "table_reliability.tex", _reliability_table(reliability, core)
     )
-    cross_table = _write(generated / "table_cross_country.tex", _cross_country_table(cross))
+    cross_table = _write(
+        generated / "table_cross_country.tex", _cross_country_table(cross, dossier_dir)
+    )
     # Optional, like the decomposition table: a dossier need not record a path to the
     # country-level estimates. When it does, the table is written and bound into the
     # manifest; when it does not, main.tex falls through its IfFileExists guard.
@@ -1282,6 +1585,11 @@ def build_paper_packet(*, dossier_dir: Path, paper_dir: Path) -> PaperPacket:
     dynamic_panel = _dynamic_panel_table(dossier_dir)
     if dynamic_panel is not None:
         optional_paths.append(_write(generated / "table_dynamic_panel.tex", dynamic_panel))
+
+    for name, body in _validation_tables(dossier_dir):
+        optional_paths.append(_write(generated / name, body))
+
+    optional_paths.append(_write(generated / "values.tex", _values_file(core, cross, dossier_dir)))
 
     markdown_summary = _write(
         generated / "results_summary.md", _markdown_summary(core, cross, reliability)
