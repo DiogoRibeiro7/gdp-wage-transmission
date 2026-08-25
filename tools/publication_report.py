@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from scipy.stats import beta
 
 REQUIRED_DOSSIER_FILES: tuple[str, ...] = (
     "core_estimates.csv",
@@ -991,12 +992,36 @@ _FIXED_EFFECT_LABEL = {
 _ESTIMATOR_LABEL = {"lsdv": "LSDV", "corrected": "LSDVC"}
 
 
+def _clopper_pearson(successes: int, trials: int, alpha: float = 0.05) -> tuple[float, float]:
+    """Exact binomial interval for a coverage proportion."""
+    if trials <= 0:
+        return (float("nan"), float("nan"))
+    lower = (
+        0.0 if successes <= 0 else float(beta.ppf(alpha / 2.0, successes, trials - successes + 1))
+    )
+    upper = (
+        1.0
+        if successes >= trials
+        else float(beta.ppf(1.0 - alpha / 2.0, successes + 1, trials - successes))
+    )
+    return (lower, upper)
+
+
 def _coverage_cell(row: Mapping[str, Any], prefix: str) -> str:
-    """A coverage proportion with its exact Monte Carlo interval."""
-    point = _fmt_pct_fraction(row[f"{prefix}_coverage"])
+    """A coverage proportion with its exact Monte Carlo interval.
+
+    Older validation artefacts record the proportion and the number of completed draws but not
+    the interval. The interval is a function of exactly those two numbers, so it is recomputed
+    rather than omitted: a note that promises brackets must not print a bare percentage.
+    """
+    share = float(row[f"{prefix}_coverage"])
+    point = _fmt_pct_fraction(share)
     interval = row.get(f"{prefix}_coverage_ci")
     if not isinstance(interval, list) or len(interval) != 2:
-        return point
+        trials = int(row.get("completed") or 0)
+        if trials <= 0:
+            return point
+        interval = list(_clopper_pearson(round(share * trials), trials))
     low = _fmt_pct_fraction(interval[0])
     high = _fmt_pct_fraction(interval[1])
     return f"{point} [{low}, {high}]"
@@ -1291,8 +1316,9 @@ def _coverage_warning(dossier_dir: Path, persistence: float) -> str:
         f"the reverse-percentile interval "
         f"{_fmt_pct_fraction(nearest['reverse_percentile_coverage'])}, against a nominal "
         f"{_fmt_pct_fraction(nearest['nominal_coverage'])}; both deteriorate as persistence "
-        "rises. The intervals here are therefore too narrow. "
-        "Appendix~\\ref{sec:validation} reports the full study. "
+        "rises. The simulation shows that these intervals do not attain nominal coverage under "
+        "the evaluated designs; it does not identify a valid scalar widening or an alternative "
+        "calibrated interval. Appendix~\\ref{sec:validation} reports the full study. "
     )
 
 
