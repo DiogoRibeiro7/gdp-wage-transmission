@@ -71,9 +71,9 @@ v0.7.1, on a sample that overlaps this one almost completely; a new data vintage
 history. The correct description is a prospectively locked follow-up analysis of a previously
 analysed sample.
 
-### v0.8.1 deliberately has no lock of its own
+### v0.8.1 and v0.8.2 deliberately have no lock of their own
 
-v0.8.1 corrects the manuscript and the formatter. It changes no file under `src/wage_transmission`
+v0.8.1 corrects the manuscript and the formatter, and v0.8.2 corrects an affiliation. It changes no file under `src/wage_transmission`
 and no configuration file, so the analysis-tree digest is unchanged at
 `0b14fbe21152bf884f948cefb71ca225d8b821de67495c43e7ec96ee6602b559` and no estimate moves.
 

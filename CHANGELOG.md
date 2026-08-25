@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.8.2 — affiliation correction — 2026-08-25
+
+ESMAD has been renamed from Escola Superior de Media Artes e Design to Faculdade de Media Artes e
+Design. The affiliation is given in English throughout, so it becomes **Faculty of Media Arts and
+Design, Technical University of Porto**, in `CITATION.cff`, `.zenodo.json` and the manuscript.
+
+This release exists so the correction reaches the archive. Zenodo copies creator metadata from
+`.zenodo.json` at the moment a release is published, so records already minted keep the name they
+were published with; a new version is the only way to propagate the change without editing each
+record by hand.
+
+Nothing else changed. No source file, no configuration file, no result, and no figure in the
+manuscript. The analysis-tree digest is unchanged at
+`0b14fbe21152bf884f948cefb71ca225d8b821de67495c43e7ec96ee6602b559`, and the estimates remain the
+ones v0.8.0 produced under its lock.
+
+
 ## v0.8.1 — what the panel interval is actually worth — 2026-08-25
 
 A review of the v0.8.0 manuscript found four false or unsupported statements and asked for the

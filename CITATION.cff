@@ -14,7 +14,7 @@ authors:
     given-names: "Diogo"
     affiliation: "Faculty of Media Arts and Design, Technical University of Porto"
     orcid: "https://orcid.org/0009-0001-2022-7072"
-version: 0.8.1
+version: 0.8.2
 date-released: 2026-08-25
 license: MIT
 doi: 10.5281/zenodo.22080269
