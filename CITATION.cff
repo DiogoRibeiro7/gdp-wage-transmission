@@ -12,7 +12,7 @@ type: software
 authors:
   - family-names: "Ribeiro"
     given-names: "Diogo"
-    affiliation: "School of Media Arts and Design, Technical University of Porto"
+    affiliation: "Faculty of Media Arts and Design, Technical University of Porto"
     orcid: "https://orcid.org/0009-0001-2022-7072"
 version: 0.8.1
 date-released: 2026-08-25
