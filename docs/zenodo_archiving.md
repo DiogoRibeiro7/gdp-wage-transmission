@@ -36,7 +36,7 @@ Once, to link the accounts:
 Then, for every release:
 
 1. Work through the release checklist below.
-2. Publish a GitHub release: `gh release create v0.7.1 --title "v0.7.1" --notes-file <notes>`.
+2. Publish a GitHub release: `gh release create v0.8.0 --title "v0.8.0" --notes-file <notes>`.
 3. Zenodo receives the webhook, archives the source tarball, and mints the DOI within a few minutes.
 4. Copy the concept DOI into the README badge and `CITATION.cff`.
 
@@ -53,9 +53,9 @@ through **New version** on the existing record, which preserves the concept DOI.
 2. Build a source archive from the tag, so the upload contains exactly the committed tree:
 
    ```bash
-   git archive --format=tar.gz --prefix=gdp-wage-transmission-0.7.1/ \
-     -o gdp-wage-transmission-0.7.1.tar.gz v0.7.1
-   sha256sum gdp-wage-transmission-0.7.1.tar.gz
+   git archive --format=tar.gz --prefix=gdp-wage-transmission-0.8.0/ \
+     -o gdp-wage-transmission-0.8.0.tar.gz v0.8.0
+   sha256sum gdp-wage-transmission-0.8.0.tar.gz
    ```
 
 3. Upload it at [zenodo.org/uploads/new](https://zenodo.org/uploads/new), then copy the metadata
@@ -104,8 +104,8 @@ and confirm:
 Anyone can check that a Zenodo archive matches what this repository recorded:
 
 ```bash
-tar -xzf gdp-wage-transmission-0.7.1.tar.gz
-cd gdp-wage-transmission-0.7.1
+tar -xzf gdp-wage-transmission-0.8.0.tar.gz
+cd gdp-wage-transmission-0.8.0
 poetry run python tools/integrity.py release-manifest verify
 ```
 
