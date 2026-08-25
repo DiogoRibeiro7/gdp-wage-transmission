@@ -1,0 +1,638 @@
+{
+  "package_version": "0.8.0",
+  "project_config": "config\\project.yml",
+  "project_config_sha256": "1586d98cf6598bc3f7ff302f6885c41e215e9365dbf466360def76c31443f848",
+  "queries": [
+    {
+      "dataset": null,
+      "expected_raw_path": "data\\raw\\2026-08-25\\oecd_average_wages_1995_2025.csv",
+      "flow": "OECD.ELS.SAE,DSD_EARNINGS@AV_AN_WAGE,1.0",
+      "measure": null,
+      "purpose": "Average annual wages, constant-price PPP series",
+      "query_id": "oecd_average_wages",
+      "source": "OECD",
+      "url": "https://sdmx.oecd.org/public/rest/data/OECD.ELS.SAE,DSD_EARNINGS@AV_AN_WAGE,1.0/AUT+BEL+DEU+DNK+ESP+FIN+FRA+GBR+ITA+NLD+PRT+SWE+USA..USD_PPP..Q..?startPeriod=1995&endPeriod=2025&dimensionAtObservation=AllDimensions&format=csvfilewithlabels"
+    },
+    {
+      "dataset": null,
+      "expected_raw_path": "data\\raw\\2026-08-25\\oecd_gdphrs_1995_2025.csv",
+      "flow": "OECD.SDD.TPS,DSD_PDB@DF_PDB,2.0",
+      "measure": "GDPHRS",
+      "purpose": "GDP per hour worked",
+      "query_id": "oecd_gdphrs",
+      "source": "OECD",
+      "url": "https://sdmx.oecd.org/public/rest/data/OECD.SDD.TPS,DSD_PDB@DF_PDB,2.0/AUT+BEL+DEU+DNK+ESP+FIN+FRA+GBR+ITA+NLD+PRT+SWE+USA.A.GDPHRS._T.USD_PPP_H.LR.N..?startPeriod=1995&endPeriod=2025&dimensionAtObservation=AllDimensions&format=csvfilewithlabels"
+    },
+    {
+      "dataset": null,
+      "expected_raw_path": "data\\raw\\2026-08-25\\oecd_gdpemp_1995_2025.csv",
+      "flow": "OECD.SDD.TPS,DSD_PDB@DF_PDB,2.0",
+      "measure": "GDPEMP",
+      "purpose": "GDP per person employed",
+      "query_id": "oecd_gdpemp",
+      "source": "OECD",
+      "url": "https://sdmx.oecd.org/public/rest/data/OECD.SDD.TPS,DSD_PDB@DF_PDB,2.0/AUT+BEL+DEU+DNK+ESP+FIN+FRA+GBR+ITA+NLD+PRT+SWE+USA.A.GDPEMP._T.USD_PPP_PS.LR.N..?startPeriod=1995&endPeriod=2025&dimensionAtObservation=AllDimensions&format=csvfilewithlabels"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_nominal_gdp_PRT_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "nominal_gdp",
+      "query_id": "eurostat_nominal_gdp_PRT",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CP_MEUR&na_item=B1GQ&geo=PT&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_real_gdp_PRT_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "real_gdp",
+      "query_id": "eurostat_real_gdp_PRT",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CLV20_MEUR&na_item=B1GQ&geo=PT&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_employee_compensation_PRT_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "employee_compensation",
+      "query_id": "eurostat_employee_compensation_PRT",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CP_MEUR&na_item=D1&geo=PT&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_pe",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_employees_PRT_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "employees",
+      "query_id": "eurostat_employees_PRT",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_pe?format=JSON&lang=EN&freq=A&unit=THS_PER&na_item=SAL_DC&geo=PT&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "prc_hicp_aind",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_consumer_price_index_PRT_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "consumer_price_index",
+      "query_id": "eurostat_consumer_price_index_PRT",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/prc_hicp_aind?format=JSON&lang=EN&freq=A&unit=INX_A_AVG&coicop=CP00&geo=PT&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_nominal_gdp_ESP_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "nominal_gdp",
+      "query_id": "eurostat_nominal_gdp_ESP",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CP_MEUR&na_item=B1GQ&geo=ES&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_real_gdp_ESP_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "real_gdp",
+      "query_id": "eurostat_real_gdp_ESP",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CLV20_MEUR&na_item=B1GQ&geo=ES&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_employee_compensation_ESP_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "employee_compensation",
+      "query_id": "eurostat_employee_compensation_ESP",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CP_MEUR&na_item=D1&geo=ES&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_pe",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_employees_ESP_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "employees",
+      "query_id": "eurostat_employees_ESP",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_pe?format=JSON&lang=EN&freq=A&unit=THS_PER&na_item=SAL_DC&geo=ES&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "prc_hicp_aind",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_consumer_price_index_ESP_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "consumer_price_index",
+      "query_id": "eurostat_consumer_price_index_ESP",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/prc_hicp_aind?format=JSON&lang=EN&freq=A&unit=INX_A_AVG&coicop=CP00&geo=ES&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_nominal_gdp_FRA_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "nominal_gdp",
+      "query_id": "eurostat_nominal_gdp_FRA",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CP_MEUR&na_item=B1GQ&geo=FR&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_real_gdp_FRA_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "real_gdp",
+      "query_id": "eurostat_real_gdp_FRA",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CLV20_MEUR&na_item=B1GQ&geo=FR&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_employee_compensation_FRA_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "employee_compensation",
+      "query_id": "eurostat_employee_compensation_FRA",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CP_MEUR&na_item=D1&geo=FR&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_pe",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_employees_FRA_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "employees",
+      "query_id": "eurostat_employees_FRA",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_pe?format=JSON&lang=EN&freq=A&unit=THS_PER&na_item=SAL_DC&geo=FR&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "prc_hicp_aind",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_consumer_price_index_FRA_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "consumer_price_index",
+      "query_id": "eurostat_consumer_price_index_FRA",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/prc_hicp_aind?format=JSON&lang=EN&freq=A&unit=INX_A_AVG&coicop=CP00&geo=FR&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_nominal_gdp_DEU_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "nominal_gdp",
+      "query_id": "eurostat_nominal_gdp_DEU",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CP_MEUR&na_item=B1GQ&geo=DE&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_real_gdp_DEU_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "real_gdp",
+      "query_id": "eurostat_real_gdp_DEU",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CLV20_MEUR&na_item=B1GQ&geo=DE&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_employee_compensation_DEU_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "employee_compensation",
+      "query_id": "eurostat_employee_compensation_DEU",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CP_MEUR&na_item=D1&geo=DE&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_pe",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_employees_DEU_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "employees",
+      "query_id": "eurostat_employees_DEU",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_pe?format=JSON&lang=EN&freq=A&unit=THS_PER&na_item=SAL_DC&geo=DE&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "prc_hicp_aind",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_consumer_price_index_DEU_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "consumer_price_index",
+      "query_id": "eurostat_consumer_price_index_DEU",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/prc_hicp_aind?format=JSON&lang=EN&freq=A&unit=INX_A_AVG&coicop=CP00&geo=DE&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_nominal_gdp_ITA_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "nominal_gdp",
+      "query_id": "eurostat_nominal_gdp_ITA",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CP_MEUR&na_item=B1GQ&geo=IT&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_real_gdp_ITA_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "real_gdp",
+      "query_id": "eurostat_real_gdp_ITA",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CLV20_MEUR&na_item=B1GQ&geo=IT&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_employee_compensation_ITA_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "employee_compensation",
+      "query_id": "eurostat_employee_compensation_ITA",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CP_MEUR&na_item=D1&geo=IT&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_pe",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_employees_ITA_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "employees",
+      "query_id": "eurostat_employees_ITA",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_pe?format=JSON&lang=EN&freq=A&unit=THS_PER&na_item=SAL_DC&geo=IT&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "prc_hicp_aind",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_consumer_price_index_ITA_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "consumer_price_index",
+      "query_id": "eurostat_consumer_price_index_ITA",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/prc_hicp_aind?format=JSON&lang=EN&freq=A&unit=INX_A_AVG&coicop=CP00&geo=IT&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_nominal_gdp_NLD_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "nominal_gdp",
+      "query_id": "eurostat_nominal_gdp_NLD",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CP_MEUR&na_item=B1GQ&geo=NL&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_real_gdp_NLD_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "real_gdp",
+      "query_id": "eurostat_real_gdp_NLD",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CLV20_MEUR&na_item=B1GQ&geo=NL&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_employee_compensation_NLD_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "employee_compensation",
+      "query_id": "eurostat_employee_compensation_NLD",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CP_MEUR&na_item=D1&geo=NL&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_pe",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_employees_NLD_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "employees",
+      "query_id": "eurostat_employees_NLD",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_pe?format=JSON&lang=EN&freq=A&unit=THS_PER&na_item=SAL_DC&geo=NL&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "prc_hicp_aind",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_consumer_price_index_NLD_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "consumer_price_index",
+      "query_id": "eurostat_consumer_price_index_NLD",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/prc_hicp_aind?format=JSON&lang=EN&freq=A&unit=INX_A_AVG&coicop=CP00&geo=NL&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_nominal_gdp_BEL_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "nominal_gdp",
+      "query_id": "eurostat_nominal_gdp_BEL",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CP_MEUR&na_item=B1GQ&geo=BE&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_real_gdp_BEL_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "real_gdp",
+      "query_id": "eurostat_real_gdp_BEL",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CLV20_MEUR&na_item=B1GQ&geo=BE&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_employee_compensation_BEL_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "employee_compensation",
+      "query_id": "eurostat_employee_compensation_BEL",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CP_MEUR&na_item=D1&geo=BE&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_pe",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_employees_BEL_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "employees",
+      "query_id": "eurostat_employees_BEL",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_pe?format=JSON&lang=EN&freq=A&unit=THS_PER&na_item=SAL_DC&geo=BE&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "prc_hicp_aind",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_consumer_price_index_BEL_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "consumer_price_index",
+      "query_id": "eurostat_consumer_price_index_BEL",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/prc_hicp_aind?format=JSON&lang=EN&freq=A&unit=INX_A_AVG&coicop=CP00&geo=BE&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_nominal_gdp_AUT_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "nominal_gdp",
+      "query_id": "eurostat_nominal_gdp_AUT",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CP_MEUR&na_item=B1GQ&geo=AT&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_real_gdp_AUT_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "real_gdp",
+      "query_id": "eurostat_real_gdp_AUT",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CLV20_MEUR&na_item=B1GQ&geo=AT&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_employee_compensation_AUT_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "employee_compensation",
+      "query_id": "eurostat_employee_compensation_AUT",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CP_MEUR&na_item=D1&geo=AT&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_pe",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_employees_AUT_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "employees",
+      "query_id": "eurostat_employees_AUT",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_pe?format=JSON&lang=EN&freq=A&unit=THS_PER&na_item=SAL_DC&geo=AT&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "prc_hicp_aind",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_consumer_price_index_AUT_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "consumer_price_index",
+      "query_id": "eurostat_consumer_price_index_AUT",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/prc_hicp_aind?format=JSON&lang=EN&freq=A&unit=INX_A_AVG&coicop=CP00&geo=AT&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_nominal_gdp_SWE_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "nominal_gdp",
+      "query_id": "eurostat_nominal_gdp_SWE",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CP_MEUR&na_item=B1GQ&geo=SE&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_real_gdp_SWE_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "real_gdp",
+      "query_id": "eurostat_real_gdp_SWE",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CLV20_MEUR&na_item=B1GQ&geo=SE&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_employee_compensation_SWE_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "employee_compensation",
+      "query_id": "eurostat_employee_compensation_SWE",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CP_MEUR&na_item=D1&geo=SE&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_pe",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_employees_SWE_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "employees",
+      "query_id": "eurostat_employees_SWE",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_pe?format=JSON&lang=EN&freq=A&unit=THS_PER&na_item=SAL_DC&geo=SE&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "prc_hicp_aind",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_consumer_price_index_SWE_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "consumer_price_index",
+      "query_id": "eurostat_consumer_price_index_SWE",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/prc_hicp_aind?format=JSON&lang=EN&freq=A&unit=INX_A_AVG&coicop=CP00&geo=SE&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_nominal_gdp_DNK_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "nominal_gdp",
+      "query_id": "eurostat_nominal_gdp_DNK",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CP_MEUR&na_item=B1GQ&geo=DK&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_real_gdp_DNK_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "real_gdp",
+      "query_id": "eurostat_real_gdp_DNK",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CLV20_MEUR&na_item=B1GQ&geo=DK&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_employee_compensation_DNK_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "employee_compensation",
+      "query_id": "eurostat_employee_compensation_DNK",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CP_MEUR&na_item=D1&geo=DK&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_pe",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_employees_DNK_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "employees",
+      "query_id": "eurostat_employees_DNK",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_pe?format=JSON&lang=EN&freq=A&unit=THS_PER&na_item=SAL_DC&geo=DK&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "prc_hicp_aind",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_consumer_price_index_DNK_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "consumer_price_index",
+      "query_id": "eurostat_consumer_price_index_DNK",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/prc_hicp_aind?format=JSON&lang=EN&freq=A&unit=INX_A_AVG&coicop=CP00&geo=DK&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_nominal_gdp_FIN_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "nominal_gdp",
+      "query_id": "eurostat_nominal_gdp_FIN",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CP_MEUR&na_item=B1GQ&geo=FI&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_real_gdp_FIN_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "real_gdp",
+      "query_id": "eurostat_real_gdp_FIN",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CLV20_MEUR&na_item=B1GQ&geo=FI&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_employee_compensation_FIN_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "employee_compensation",
+      "query_id": "eurostat_employee_compensation_FIN",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CP_MEUR&na_item=D1&geo=FI&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_pe",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_employees_FIN_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "employees",
+      "query_id": "eurostat_employees_FIN",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_pe?format=JSON&lang=EN&freq=A&unit=THS_PER&na_item=SAL_DC&geo=FI&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "prc_hicp_aind",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_consumer_price_index_FIN_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "consumer_price_index",
+      "query_id": "eurostat_consumer_price_index_FIN",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/prc_hicp_aind?format=JSON&lang=EN&freq=A&unit=INX_A_AVG&coicop=CP00&geo=FI&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_nominal_gdp_GBR_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "nominal_gdp",
+      "query_id": "eurostat_nominal_gdp_GBR",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CP_MEUR&na_item=B1GQ&geo=UK&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_real_gdp_GBR_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "real_gdp",
+      "query_id": "eurostat_real_gdp_GBR",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CLV20_MEUR&na_item=B1GQ&geo=UK&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_gdp",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_employee_compensation_GBR_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "employee_compensation",
+      "query_id": "eurostat_employee_compensation_GBR",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp?format=JSON&lang=EN&freq=A&unit=CP_MEUR&na_item=D1&geo=UK&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "nama_10_pe",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_employees_GBR_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "employees",
+      "query_id": "eurostat_employees_GBR",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_pe?format=JSON&lang=EN&freq=A&unit=THS_PER&na_item=SAL_DC&geo=UK&sinceTimePeriod=1995&untilTimePeriod=2025"
+    },
+    {
+      "dataset": "prc_hicp_aind",
+      "expected_raw_path": "data\\raw\\2026-08-25\\eurostat_consumer_price_index_GBR_1995_2025.json",
+      "flow": null,
+      "measure": null,
+      "purpose": "consumer_price_index",
+      "query_id": "eurostat_consumer_price_index_GBR",
+      "source": "Eurostat",
+      "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/prc_hicp_aind?format=JSON&lang=EN&freq=A&unit=INX_A_AVG&coicop=CP00&geo=UK&sinceTimePeriod=1995&untilTimePeriod=2025"
+    }
+  ],
+  "vintage": "2026-08-25"
+}

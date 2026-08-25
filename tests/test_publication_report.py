@@ -238,3 +238,36 @@ def test_preflight_catches_an_overfull_box(tmp_path: Path) -> None:
     )
 
     assert preflight_pdf(paper) == 1
+
+
+def test_preflight_catches_the_appendix_reference_that_reached_the_page(tmp_path: Path) -> None:
+    """The exact defect that printed "efsec:panel-appendix" in a compiled manuscript.
+
+    A backslash lost from ``\ref`` inside a generation script leaves 0x0D followed by "ef",
+    which TeX typesets as literal text and warns about nothing. Two independent checks should
+    see it: the stray control byte, and the damaged-command pattern.
+    """
+    paper = _stub_paper(
+        tmp_path, body=b"see Appendix~" + bytes([13]) + b"ef{sec:panel-appendix} for detail.\n"
+    )
+
+    assert preflight_pdf(paper) == 1
+
+
+def test_preflight_reads_generated_fragments_as_bytes_too(tmp_path: Path) -> None:
+    """Generated fragments are where mangled commands are actually produced."""
+    paper = _stub_paper(tmp_path, body=b"Nothing wrong in the manuscript.\n")
+    (paper / "generated" / "table_dynamic_panel.tex").write_bytes(
+        b"Table~" + bytes([13]) + b"ef{tab:dynamic-panel}\n"
+    )
+
+    assert preflight_pdf(paper) == 1
+
+
+def test_preflight_does_not_flag_an_intact_reference_to_a_section(tmp_path: Path) -> None:
+    """`ef{sec:` is a substring of `\ref{sec:`; the check must not fire on the intact command."""
+    paper = _stub_paper(
+        tmp_path, body=b"see Appendix~" + bytes([92]) + b"ref{sec:dynamic-panel} for detail.\n"
+    )
+
+    assert preflight_pdf(paper) == 0

@@ -1,5 +1,161 @@
 # Changelog
 
+## v0.8.0 — a panel estimate that answers the paper's question — 2026-08-25
+
+The previous release reported a pooled panel coefficient of 0.327 and placed it beside a median
+country multiplier of 0.382 and a random-effects summary of 0.309, close enough that the three
+read as agreement. They were not comparable. The pooled regression was **static** — wage growth on
+contemporaneous driver growth, no lags, no lagged dependent variable — while the paper's estimand
+is a **cumulative multiplier** from a dynamic specification. The sample sizes made the difference
+visible and were not read: 389 observations against 363.
+
+This release replaces that number with one that targets the same quantity.
+
+### The specification, and when it was fixed
+
+`wage_transmission.models.dynamic_panel` estimates
+
+```
+dlog w_it = a_i + l_t + sum_{j=0..2} b_j dlog p_{i,t-j} + g dlog w_{i,t-1} + u_it
+Theta_panel = (b_0 + b_1 + b_2) / (1 - g)
+```
+
+with country and year effects as the primary specification and country effects alone as the
+sensitivity. The two productivity drivers are estimated separately and never pooled. Two driver
+lags and one dependent lag cost three observations per country, giving 12(28) + 27 = 363.
+
+The whole specification — structure, estimator, bootstrap plan and reporting gates — was locked
+**before** the source snapshot behind these results was retrieved. The lock artefact stays outside
+version control as always, so its digests are recorded in `docs/specification_lock.md`, and the
+commit carrying them precedes the commit carrying the snapshot. The ordering can be checked from
+the public history rather than taken on trust.
+
+That makes this a **prospectively locked follow-up analysis**. It is not confirmatory and it is
+not out-of-sample evidence: the specification was written because of results already seen in
+v0.7.1, on the same countries and the same years.
+
+### The snapshot returned no new data
+
+All 63 official queries were re-run on 2026-08-25 under the same query manifest. **Every response
+was byte-identical to the 2026-08-24 freeze.** No OECD or Eurostat revision occurred between the
+two dates, so the vintage analysed here contains exactly the observations the previous release
+analysed. That is recorded in the paper as well as here, because it settles how the new estimate
+must be described.
+
+### Bias correction: what was implemented, and what was not
+
+A lagged dependent variable beside fixed effects biases LSDV downward by order `1/T`
+(Nickell 1981). Twenty-eight effective years shrink that bias without removing it, and thirteen
+countries are far too few for Arellano–Bond or system GMM, whose asymptotics run in the wrong
+direction here.
+
+The correction implemented is **simulation-based** (Everaert and Pozzi 2007), **not** the
+analytical Kiviet–Bruno expansion, and the substitution is deliberate. Bruno's (2005)
+approximation for unbalanced panels is derived for a model with individual effects and strictly
+exogenous regressors; it does not accommodate the year effects the primary specification carries.
+Using it would have meant dropping the year effects or applying a bias formula outside its
+derivation. The simulation correction handles both fixed-effect dimensions and the unbalanced
+endpoint directly.
+
+It is verified rather than asserted. On panels generated with known parameters, uncorrected LSDV
+reproduces the textbook `-(1+g)/T` bias almost exactly and the correction removes better than
+nine tenths of it. That check runs in the test suite.
+
+**The correction addresses dynamic fixed-effects bias. It does not solve contemporaneous
+endogeneity between productivity and wages.** The coefficient remains a reduced-form conditional
+association.
+
+### Inference
+
+Country-clustered normal intervals with thirteen clusters are not reliable, and a delta-method
+interval around a ratio is optimistic twice over. Intervals come instead from a circular
+moving-block bootstrap in which each drawn block carries the complete thirteen-country
+cross-section, so contemporaneous cross-country dependence survives the resampling. The
+resampling universe is restricted to years every country observes, and the United Kingdom's
+missing endpoint is reinstated by giving it one fewer resampled year, so every replication
+reproduces the observed panel shape exactly. Lags are rebuilt after concatenation, the corrected
+model is re-estimated in each replication, and `Theta` is computed inside it.
+
+Block length four with 4,999 replications is primary; block lengths three and five are frozen
+sensitivity checks. Driscoll–Kraay standard errors are recorded as a secondary diagnostic only.
+
+One property of resampling data rather than residuals is reported rather than buried: gluing
+blocks breaks the dynamic relation at each boundary, so persistence within a replication is
+attenuated. The median replication is therefore reported beside every point estimate, so the
+displacement between them is visible.
+
+### Results
+
+All six gates passed for every specification: `|g| < 1`, at least 25 effective years, a finite
+multiplier in at least 95% of replications, at least 95% convergence, no rank deficiency, and all
+4,999 replications requested and completed. 4,999 of 4,999 completed, with 100% convergence and a
+finite multiplier in 100%, on both drivers.
+
+| Driver | Fixed effects | Corrected Theta | Bootstrap 95% CI |
+| --- | --- | ---: | --- |
+| GDP per person employed | country + year | 0.551 | [0.322, 0.744] |
+| GDP per person employed | country | 0.424 | [0.032, 0.658] |
+| GDP per hour | country + year | 0.251 | [-0.058, 0.633] |
+| GDP per hour | country | 0.282 | [-0.082, 0.592] |
+
+The primary interval is the only one in the paper excluding both zero and one. The paper says
+plainly why that is not a stronger finding than the country estimates: it uses the same
+country-years, it reaches its precision by imposing dynamics the country estimates argue against,
+it falls to [0.032, 0.658] once the year effects come out, and it contains zero on the secondary
+driver.
+
+### Bootstrap replications raised
+
+`band_replications` and `break_bootstrap_replications` rise from 199 and 499 to 1,999. This was
+deferred from the previous vintage because it changes a hashed configuration file and so requires
+a new lock. At 199 replications the 2.5th percentile fell on roughly the fifth ordered value; at
+1,999 it falls on the fiftieth. The break test's p-values move from 0.072 to 0.069 on the primary
+driver and 0.182 to 0.170 on the secondary; neither changes a verdict.
+
+### Manuscript
+
+- The contemporaneous panel appendix is removed. `tools/panel_robustness.py` and its artefact stay
+  in the repository as a historical record, with a docstring saying not to wire it back in.
+- The residual ADF description was wrong. It said "a constant and no trend"; the code runs the
+  residual test with **no deterministic term** and caps the AIC lag search at
+  `min(ceil(12(n/100)^(1/4)), floor(n/2) - 1)`, which is nine here. The AIC selects zero lags in
+  eight of thirteen countries and six in Spain, so the test's power varies across the panel — now
+  stated.
+- The break-test table, the GDP-per-hour local projections, the covariance/`I²` corrections, the
+  limitation numbering and the removal of every unconditional "optimistic" are carried forward
+  from the previous round and verified again here.
+- Section numbers typed by hand are replaced by real cross-references. They happened to be right,
+  which is the problem.
+- Nine references added, each checked against Crossref before being written: Nickell, Kiviet,
+  Bruno (both papers), Everaert–Pozzi, Judson–Owen, Arellano–Bond, Blundell–Bond, Driscoll–Kraay.
+  33 entries, all cited, no undefined citations.
+
+### Guards
+
+- `preflight` gains regression tests for the exact malformed reference that once printed
+  `efsec:panel-appendix` on a compiled page, for damage inside a generated fragment, and for the
+  intact `\ref{sec:...}` that must not trip the same check.
+- A new repository-wide test reads every tracked text file as **bytes** and rejects stray control
+  characters. A lost backslash turns `\alpha` into a bell character followed by `lpha`, which
+  renders as nothing and survives review. It caught two such defects in this release's own
+  documentation while it was being written.
+
+### Validation
+
+- **166 tests pass**, up from 144.
+- `ruff check`, `ruff format --check` and `mypy --strict` clean.
+- Manuscript: 24 pages, preflight clean, packet audit clean, 0 undefined references or citations.
+- A full vintage build takes roughly 30 minutes on an unloaded machine, dominated by the eight
+  bootstrap runs of 4,999 replications.
+
+### Known limitation carried forward
+
+Processed CSVs and dossier tables are written with the platform's line ending, so the same inputs
+produce different bytes on Windows and Linux, and repeated runs can differ in the last floating-
+point digit of a reduction. Neither affects any reported figure. Fixing it changes locked source,
+so it waits for the next lock rather than being slipped in after results were seen.
+
+
 ## First live source freeze, and what it found — 2026-08-24
 
 The publication source freeze ran for the first time. Continuous integration had been blocked

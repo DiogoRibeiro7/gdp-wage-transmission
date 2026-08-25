@@ -188,13 +188,20 @@ def _write(path: Path, text: str) -> Path:
 
 
 def _table_wrapper(
-    *, caption: str, label: str, columns: str, header: str, rows: Iterable[str], note: str
+    *,
+    caption: str,
+    label: str,
+    columns: str,
+    header: str,
+    rows: Iterable[str],
+    note: str,
+    size: str = "footnotesize",
 ) -> str:
     body = "\n".join(rows)
     return f"""% AUTO-GENERATED. DO NOT EDIT.
 \\begin{{table}}[htbp]
 \\centering
-\\footnotesize
+\\{size}
 \\caption{{{caption}}}
 \\label{{{label}}}
 \\begin{{tabular}}{{{columns}}}
@@ -945,72 +952,179 @@ def _break_table(core: pd.DataFrame) -> str | None:
     )
 
 
-def _panel_robustness_table(dossier_dir: Path) -> str | None:
-    """Render the pooled panel estimates, labelled as post-hoc.
+_FIXED_EFFECT_LABEL = {
+    "country_and_year": "Country + year",
+    "country": "Country only",
+}
 
-    The artefact records ``prespecified: false``. That flag is enforced here rather than
-    trusted: a payload claiming to be pre-specified is refused, because this table sits in an
-    appendix under a heading that describes it as a robustness exercise, and a pre-specified
-    result must not be presented there as though it were one.
+_ESTIMATOR_LABEL = {"lsdv": "LSDV", "corrected": "LSDVC"}
+
+
+def _dynamic_panel_table(dossier_dir: Path) -> str | None:
+    """Render the frozen dynamic panel: the same cumulative multiplier, estimated pooled.
+
+    Both the uncorrected and the bias-corrected estimator appear, because the size of the
+    correction is part of the evidence. Only the corrected row is substantive; the note says so,
+    and the gate column says whether even that may be read as a result.
     """
-    path = dossier_dir / "panel_robustness.json"
+    path = dossier_dir / "dynamic_panel_summary.csv"
     if not path.is_file():
         return None
-    payload = _load_json_object(path)
-    if payload.get("prespecified") is not False:
-        raise ValueError(
-            f"{path} does not record prespecified=false. This table presents results as post-hoc "
-            "robustness, and a pre-specified estimate must not be reported under that heading."
-        )
-
-    estimates = payload.get("estimates") or []
-    if not estimates:
+    frame = pd.read_csv(path)
+    reported = frame.loc[frame["role"].isin(["primary", "sensitivity_fixed_effects"])]
+    if reported.empty:
         return None
 
     rows: list[str] = []
-    for record in estimates:
-        effects = "Country + year" if record.get("time_effects") else "Country"
-        rows.append(
-            "{} & {} & {} & {} & [{}, {}] & {} \\\\".format(
-                _escape_latex(_driver_label(str(record["driver"]))),
-                effects,
-                _fmt_float(record["elasticity"]),
-                _fmt_float(record["std_error"]),
-                _fmt_float(record["lower_95"]),
-                _fmt_float(record["upper_95"]),
-                _fmt_float(record["within_r_squared"]),
-            )
-        )
+    for driver in ("productivity_per_worker", "productivity"):
+        for effects in ("country_and_year", "country"):
+            matched = reported.loc[
+                (reported["driver"] == driver) & (reported["fixed_effects"] == effects)
+            ]
+            if matched.empty:
+                continue
+            record = matched.iloc[0]
+            for prefix in ("lsdv", "corrected"):
+                interval = (
+                    f"[{_fmt_float(record[f'{prefix}_multiplier_ci_low'])}, "
+                    f"{_fmt_float(record[f'{prefix}_multiplier_ci_high'])}]"
+                )
+                persistence = (
+                    record["corrected_persistence"]
+                    if prefix == "corrected"
+                    else record["lsdv_persistence"]
+                )
+                driver_sum = (
+                    record["corrected_driver_sum"]
+                    if prefix == "corrected"
+                    else record["lsdv_driver_sum"]
+                )
+                gate = "eligible" if _bool_value(record["claim_eligible"]) else "not eligible"
+                rows.append(
+                    "{} & {} & {} & {} & {} & {} & {} & {} & {} & {} \\\\".format(
+                        _escape_latex(_driver_label(driver)),
+                        _escape_latex(_FIXED_EFFECT_LABEL.get(str(effects), str(effects))),
+                        _ESTIMATOR_LABEL[prefix],
+                        int(record["n_countries"]),
+                        int(record["nobs"]),
+                        _fmt_float(persistence),
+                        _fmt_float(driver_sum),
+                        _fmt_float(record[f"{prefix}_multiplier"]),
+                        interval,
+                        _escape_latex(gate),
+                    )
+                )
+    if not rows:
+        return None
 
-    clusters = int(estimates[0].get("n_countries", 0))
-    nobs = int(estimates[0].get("nobs", 0))
     return _table_wrapper(
-        caption="Pooled contemporaneous within-country association (post-hoc, not the primary estimand).",
-        label="tab:panel-robustness",
-        columns="llrrrr",
-        header=r"Driver & Fixed effects & Estimate & Clustered SE & 95\% CI & Within $R^2$",
-        rows=rows,
-        note=(
-            "This is a static specification: real wage growth is regressed on contemporaneous "
-            "driver growth with no lags and no lagged dependent variable. The coefficient is "
-            "therefore a contemporaneous association and is \\emph{not} the cumulative "
-            "multiplier that is the paper's primary estimand, which divides the summed driver "
-            "coefficients by one minus the lagged-dependent coefficient. The two are different "
-            f"objects and should not be compared. Estimated on {nobs} country-year growth "
-            f"observations across {clusters} countries, which is every available annual first "
-            "difference; a dynamic panel matching the primary specification would lose three "
-            "observations per country. "
-            "The estimator is part of the locked analysis package, but the decision to report it "
-            "was taken after the pre-specified estimates were seen, so this is a post-hoc "
-            "exercise outside the confirmatory hierarchy. "
-            "Standard errors use a CR1 finite-sample correction, "
-            f"$(G/(G-1))\\cdot((N-1)/(N-K))$, clustered on country. With {clusters} clusters "
-            "this is below the range in which cluster-robust asymptotics are reliable; CR2 with "
-            "adjusted degrees of freedom, or a wild cluster bootstrap, would be more appropriate "
-            "and is not attempted here. Year effects absorb an additive shock common to all "
-            "countries in a year; they do not absorb heterogeneous exposure to a common shock, "
-            "regional shocks, or residual cross-sectional dependence."
+        caption=(
+            "Dynamic panel: cumulative transmission "
+            "$\\Theta_{\\mathrm{panel}}=(\\sum_j\\hat{\\beta}_j)/(1-\\hat{\\gamma})$."
         ),
+        label="tab:dynamic-panel",
+        columns="p{1.95cm}p{1.5cm}lrrrrrll",
+        header=(
+            r"Driver & Fixed effects & Est. & $N$ & Obs. & $\hat{\gamma}$ & "
+            r"$\sum\hat{\beta}_j$ & $\hat{\Theta}$ & Bootstrap 95\% CI & Gate"
+        ),
+        rows=rows,
+        note=_dynamic_panel_note(frame),
+        size="scriptsize",
+    )
+
+
+def _dynamic_panel_note(frame: pd.DataFrame) -> str:
+    """Everything a reader needs to interpret the table, generated from the same artefact."""
+    primary = frame.loc[
+        (frame["role"] == "primary") & (frame["driver"] == "productivity_per_worker")
+    ]
+    if primary.empty:
+        primary = frame.loc[frame["role"] == "primary"]
+    record = primary.iloc[0]
+
+    sensitivity = frame.loc[frame["role"] == "sensitivity_block_length"]
+    block_parts = [
+        "block length {} gives $\\hat{{\\Theta}}={}$ [{}, {}]".format(
+            int(row["block_length"]),
+            _fmt_float(row["corrected_multiplier"]),
+            _fmt_float(row["corrected_multiplier_ci_low"]),
+            _fmt_float(row["corrected_multiplier_ci_high"]),
+        )
+        for _, row in sensitivity.loc[sensitivity["driver"] == str(record["driver"])]
+        .sort_values("block_length")
+        .iterrows()
+    ]
+    block_text = (
+        "Frozen block-length sensitivities on the primary driver: " + "; ".join(block_parts) + ". "
+        if block_parts
+        else " "
+    )
+
+    failures = sorted(
+        {
+            part
+            for recorded in frame["gate_failures"].fillna("")
+            for part in str(recorded).split(";")
+            if part
+        }
+    )
+    gate_text = (
+        "No specification failed a pre-specified gate."
+        if not failures
+        else "Failed gates, recorded rather than dropped: "
+        + _escape_latex(", ".join(failures).replace("_", " "))
+        + "."
+    )
+
+    return (
+        "Estimated on the same dynamic structure as the country models, "
+        "$\\Delta\\log w_{it}=\\alpha_i+\\lambda_t+\\sum_{j=0}^{2}\\beta_j"
+        "\\Delta\\log p_{i,t-j}+\\gamma\\Delta\\log w_{i,t-1}+u_{it}$, so the panel "
+        "estimand is the same cumulative multiplier and not a contemporaneous slope. Two driver "
+        "lags and one dependent lag cost three observations per country, which is why "
+        f"{int(record['nobs'])} rows come from "
+        f"{int(record['n_countries'])} countries and "
+        f"{int(record['n_effective_years'])} effective years. The two drivers are estimated "
+        "separately and never pooled. "
+        "LSDVC is bias-corrected LSDV; LSDV is reported only to show the size of the correction, "
+        "and only the corrected estimator is substantive. The correction is simulation-based "
+        "rather than the analytical Kiviet--Bruno expansion, which assumes strictly exogenous "
+        "regressors with individual effects only and does not accommodate the year effects the "
+        "primary specification carries. "
+        "The bias correction addresses dynamic fixed-effects bias. It does not solve "
+        "contemporaneous endogeneity between productivity and wages. The coefficient remains a "
+        "reduced-form conditional association. "
+        "Intervals are percentile intervals for the nonlinear multiplier itself, from a circular "
+        "moving-block bootstrap that resamples the complete "
+        f"{int(record['n_countries'])}-country cross-section jointly with block length "
+        f"{int(record['block_length'])}: "
+        f"{int(record['replications_requested'])} replications requested and "
+        f"{int(record['replications_completed'])} completed, the corrected model re-estimated in "
+        "every one of them, lags rebuilt after block concatenation, and the short country's "
+        "missing endpoint preserved. "
+        "Gluing blocks breaks the dynamic relation at each boundary, so a replication's "
+        "persistence is attenuated: the median replication gives "
+        f"$\\hat{{\\Theta}}={_fmt_float(record['corrected_multiplier_bootstrap_median'])}$ "
+        f"against a point estimate of {_fmt_float(record['corrected_multiplier'])}, and that gap "
+        "is a property of the resampling scheme, not additional evidence. "
+        "The denominator is well away from zero throughout: "
+        f"$1-\\hat{{\\gamma}}$ has a bootstrap median of "
+        f"{_fmt_float(record['one_minus_persistence_p50'])}, a 95\\% range of "
+        f"[{_fmt_float(record['one_minus_persistence_p2.5'])}, "
+        f"{_fmt_float(record['one_minus_persistence_p97.5'])}], and a minimum absolute value of "
+        f"{_fmt_float(record['one_minus_persistence_min_abs'])} across replications, so the ratio "
+        f"is finite in {_fmt_pct_fraction(record['finite_multiplier_share'])} of them. "
+        f"{block_text}"
+        "Driscoll--Kraay standard errors are reported as a secondary diagnostic only "
+        f"($\\hat{{\\gamma}}$: {_fmt_float(record['driscoll_kraay_persistence_std_error'])}; "
+        f"$\\sum\\hat{{\\beta}}_j$: "
+        f"{_fmt_float(record['driscoll_kraay_driver_sum_std_error'])}; "
+        f"$\\hat{{\\Theta}}$ by the delta method: "
+        f"{_fmt_float(record['driscoll_kraay_multiplier_std_error'])}, "
+        f"{int(record['driscoll_kraay_lags'])} lags). Their justification is asymptotic in the "
+        f"time dimension, and {int(record['n_effective_years'])} effective years is "
+        f"not enough for them to replace the bootstrap. {gate_text}"
     )
 
 
@@ -1165,9 +1279,9 @@ def build_paper_packet(*, dossier_dir: Path, paper_dir: Path) -> PaperPacket:
     if breaks is not None:
         optional_paths.append(_write(generated / "table_breaks.tex", breaks))
 
-    panel = _panel_robustness_table(dossier_dir)
-    if panel is not None:
-        optional_paths.append(_write(generated / "table_panel_robustness.tex", panel))
+    dynamic_panel = _dynamic_panel_table(dossier_dir)
+    if dynamic_panel is not None:
+        optional_paths.append(_write(generated / "table_dynamic_panel.tex", dynamic_panel))
 
     markdown_summary = _write(
         generated / "results_summary.md", _markdown_summary(core, cross, reliability)

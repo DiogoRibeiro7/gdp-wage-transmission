@@ -17,7 +17,22 @@ import pytest
 ALLOWED_CONTROL_BYTES = frozenset({0x09, 0x0A, 0x0D})
 
 TEXT_SUFFIXES = frozenset(
-    {".py", ".md", ".yml", ".yaml", ".toml", ".cff", ".json", ".tex", ".bib", ".txt", ".cfg"}
+    {
+        ".py",
+        ".md",
+        ".yml",
+        ".yaml",
+        ".toml",
+        ".cff",
+        ".json",
+        ".tex",
+        ".bib",
+        ".txt",
+        ".cfg",
+        ".csv",
+        ".sha256",
+        ".lock",
+    }
 )
 
 
@@ -64,3 +79,17 @@ def test_the_control_character_scan_sees_a_lost_backslash(
     )
 
     assert [hex(byte) for byte in found] == [expected]
+
+
+def test_no_tracked_text_file_uses_crlf() -> None:
+    """Git normalises to LF on commit, so a CRLF working tree hashes differently from the archive.
+
+    That gap is exactly what `release-archive verify` catches after the fact. Catching it here
+    means a release is never cut with a manifest that disagrees with what a downloader gets.
+    """
+    offenders = [
+        f"{path.as_posix()} ({count} lines)"
+        for path in _tracked_text_files()
+        if (count := path.read_bytes().count(b"\r\n"))
+    ]
+    assert not offenders, "tracked text files using CRLF: " + "; ".join(offenders)

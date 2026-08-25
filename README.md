@@ -87,8 +87,10 @@ The implementation deliberately progresses from accounting identities to increas
 8. local projections, with block-bootstrap bands;
 9. asymmetric transmission regression;
 10. optional VECM impulse responses;
-11. cross-country robustness, country by country, with a pooled fixed-effects estimate and
-    country-clustered standard errors offered only as a secondary check.
+11. cross-country robustness, country by country, reported before any pooled summary;
+12. a dynamic panel whose estimand is the same cumulative multiplier as the country models,
+    corrected for dynamic fixed-effects bias, with percentile intervals from a moving-block
+    bootstrap over complete cross-sections.
 
 The state-space and break models do **not** hard-code historical break dates. Historical events are used only after estimation to interpret estimated regimes. The break test searches over candidate dates, and its bootstrap p-value already accounts for that search, so a rejection is not an artefact of looking everywhere.
 

@@ -51,6 +51,7 @@ A successful build creates:
 - `paper/generated/table_reliability.tex`
 - `paper/generated/table_cross_country.tex`
 - `paper/generated/table_decomposition.tex` when decomposition evidence exists
+- `paper/generated/table_dynamic_panel.tex` when the dossier carries `dynamic_panel_summary.csv`
 - `paper/generated/results_summary.md`
 - `paper/generated/paper_packet_manifest.json`
 

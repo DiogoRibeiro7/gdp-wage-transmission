@@ -46,3 +46,33 @@ manifest = build_release_manifest(
 )
 write_release_manifest(manifest, Path("results/vintages/2026-08-22/release_manifest.json"))
 ```
+
+## Building a vintage end to end
+
+`tools/build_vintage.py` runs the whole sequence -- country models, country-by-country estimates,
+the dynamic panel, both decompositions, the publication dossier and the release manifest -- from
+frozen processed panels:
+
+```bash
+poetry run python tools/build_vintage.py \
+  --vintage 2026-08-25 \
+  --specification-lock paper/specification_lock_v0.8.0.json
+```
+
+The individual CLI commands still exist; the script exists because the exact paths each step
+consumes are easy to get wrong. Two in particular: the publication dossier takes the
+**cross-country** decomposition summary rather than the Portugal-only one, and the dynamic panel
+is run once per driver with the two never pooled.
+
+Expect roughly 30 minutes on an unloaded machine. The eight bootstrap runs of 4,999 replications
+dominate, at about three minutes each; the two country pipelines at 1,999 replications take about
+two minutes each.
+
+### Two byte-level caveats
+
+Processed CSVs and dossier tables are written with the platform's default line ending, so the same
+inputs produce different bytes on Windows and on Linux. Repeated runs on one machine can also
+differ in the last floating-point digit of a reduction, because summation order is not pinned.
+Neither affects any reported figure -- the 2026-08-25 rebuild reproduced every published value to
+every digit shown -- but it does mean a digest comparison across platforms will differ where a
+value comparison would not. Fixing it changes locked source, so it waits for the next lock.

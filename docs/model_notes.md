@@ -113,18 +113,70 @@ estimator it describes.
 The bands are pointwise percentile intervals, not simultaneous ones. They do not license a claim
 about the path as a whole, such as a decline between two particular years.
 
-## Panel fixed effects
+## Dynamic panel
 
-`estimate_panel_fixed_effects` reports one pooled within-country elasticity with standard errors
-clustered by country. It is a robustness check and never a replacement for the country-specific
-estimates: pooling imposes homogeneous transmission dynamics, and where the country estimates are
-heterogeneous the pooled number is a weighted average of genuinely different processes rather
-than a common parameter.
+`models/dynamic_panel.py` estimates the panel version of the paper's own estimand:
 
-Cluster-robust inference is asymptotic in the *number of clusters*. With the country counts
-available here -- well below the conventional threshold of about 30 -- the clustered standard
-errors are downward-biased, and the result carries that caveat in its `interpretation` field so
-the warning travels with the number rather than living only in this document.
+```
+dlog w_it = a_i + l_t + sum_{j=0..2} b_j dlog p_{i,t-j} + g dlog w_{i,t-1} + u_it
+Theta_panel = (b_0 + b_1 + b_2) / (1 - g)
+```
 
-Optional year effects absorb common annual shocks, at the cost of discarding the cross-country
-common component that a global productivity slowdown would show up in.
+The structure deliberately matches the country-level distributed lag, so the pooled quantity is
+the same cumulative multiplier rather than a contemporaneous slope. Country and year effects are
+the primary specification; country effects alone are the pre-specified sensitivity. The two
+productivity drivers are estimated separately and never pooled. Two driver lags and one dependent
+lag cost three observations per country, so the effective sample is 12(28) + 27 = 363.
+
+**Bias.** A lagged dependent variable beside fixed effects makes LSDV inconsistent, with a bias of
+order `1/T` (Nickell 1981). Twenty-eight effective years shrink it without removing it, and
+thirteen countries are far too few for Arellano-Bond or system GMM, whose asymptotics run in the
+wrong direction here. Estimation is bias-corrected, with the uncorrected estimate reported beside
+it so the size of the correction is visible; only the corrected estimator is substantive.
+
+The correction is **simulation-based** (Everaert and Pozzi 2007), not the analytical
+Kiviet-Bruno expansion. That expansion is derived for a model with individual effects and strictly
+exogenous regressors and does not accommodate the year effects the primary specification carries.
+The implementation simulates the panel from a candidate parameter -- holding the driver path, the
+estimated fixed effects, the initial conditions and the missing-cell pattern at their observed
+values, resampling errors as whole cross-sectional vectors so contemporaneous dependence survives
+-- re-estimates LSDV on each simulated panel, and solves for the parameter whose simulated mean
+reproduces the observed estimate. `tests/test_dynamic_panel.py` checks it against panels with
+known parameters: uncorrected LSDV reproduces the textbook `-(1+g)/T` bias and the correction
+removes better than nine tenths of it.
+
+The bias correction addresses dynamic fixed-effects bias. It does **not** solve contemporaneous
+endogeneity between productivity and wages. The coefficient remains a reduced-form conditional
+association.
+
+**Inference.** Thirteen clusters cannot support country-clustered normal intervals, and the
+multiplier is a ratio, so a delta-method interval around it is optimistic twice over. Intervals
+come from a circular moving-block bootstrap in which each drawn block carries the complete
+thirteen-country cross-section, preserving contemporaneous cross-country dependence. The
+resampling universe is restricted to years every country observes, so every drawn cross-section is
+complete; the short country's missing endpoint is reinstated by giving it one fewer resampled
+year, so every replication reproduces the observed panel shape exactly. Lags are rebuilt after
+concatenation, the corrected model is re-estimated in each replication, and `Theta` is computed
+inside it, so the interval is a percentile interval for the ratio itself.
+
+Resampling the data rather than the residuals breaks the dynamic relation at each block boundary,
+which attenuates persistence within a replication. The median replication is therefore reported
+beside every point estimate, so the displacement between the two is visible rather than buried.
+
+Driscoll-Kraay standard errors are a **secondary diagnostic** only: their justification is
+asymptotic in the time dimension, and about twenty-eight effective years is not enough for them to
+replace the bootstrap.
+
+**Gates**, all frozen in `config/models.yml` before retrieval: `|g| < 1`, at least 25 effective
+years, a finite multiplier in at least 95% of replications, at least 95% convergence, no rank
+deficiency after the fixed effects, and all requested replications completed. A specification
+failing any of them is reported and labelled ineligible, never dropped.
+
+## Panel fixed effects (superseded)
+
+`estimate_panel_fixed_effects` reports one pooled within-country elasticity with country-clustered
+standard errors. It is **static**: wage growth on contemporaneous driver growth, no lags and no
+lagged dependent variable, so its coefficient is not the cumulative multiplier the paper reports
+and the two must not be compared. It also uses every available first difference, 389 observations,
+against 363 for the dynamic specification. It remains in the package as the estimator behind an
+earlier release's appendix; new work should use `dynamic_panel` instead.

@@ -1,4 +1,4 @@
-.PHONY: help install hooks format format-check lint typecheck test coverage check build clean integrity release-manifest release-manifest-verify release-archive paper-preflight spec-lock paper2-lock paper2-lock-verify paper-packet paper-audit notebooks demo freeze-plan freeze-fetch freeze-audit snapshot-registry publication-gate publication-dossier wage-distribution-breaks
+.PHONY: help install hooks format format-check lint typecheck test coverage check build clean integrity release-manifest release-manifest-verify release-archive paper-preflight spec-lock paper2-lock paper2-lock-verify paper-packet paper-audit notebooks demo freeze-plan freeze-fetch freeze-audit snapshot-registry publication-gate publication-dossier build-vintage freeze-vintage verify-vintage wage-distribution-breaks
 
 # Default target: list the documented entry points.
 help:
@@ -124,6 +124,20 @@ publication-dossier:
 	poetry run wage-transmission build-publication-dossier \
 		--results-root results/vintages/$(VINTAGE) \
 		--output results/vintages/$(VINTAGE)/publication_dossier
+
+build-vintage: ## Run every analysis step for VINTAGE from frozen processed panels
+	@test -n "$(VINTAGE)" || (echo "Usage: make build-vintage VINTAGE=YYYY-MM-DD [LOCK=path]" && exit 2)
+	poetry run python tools/build_vintage.py \
+		--vintage $(VINTAGE) \
+		$(if $(LOCK),--specification-lock $(LOCK),)
+
+freeze-vintage: ## Copy VINTAGE inputs and outputs into a checksummed reproducibility bundle
+	@test -n "$(VINTAGE)" || (echo "Usage: make freeze-vintage VINTAGE=YYYY-MM-DD" && exit 2)
+	poetry run python tools/freeze_vintage_artifact.py --vintage $(VINTAGE)
+
+verify-vintage: ## Re-hash an existing VINTAGE bundle against the manifest it carries
+	@test -n "$(VINTAGE)" || (echo "Usage: make verify-vintage VINTAGE=YYYY-MM-DD" && exit 2)
+	poetry run python tools/freeze_vintage_artifact.py --vintage $(VINTAGE) --verify
 
 wage-distribution-breaks:
 	PYTHONPATH=.:src poetry run python tools/wage_distribution_breaks.py \

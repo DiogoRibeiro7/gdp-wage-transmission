@@ -13,6 +13,15 @@ country-specific estimates.
 
 The result is written as a JSON artefact with the digest of every input panel, so a table
 generated from it is as traceable as one generated from the dossier.
+
+**Superseded in v0.8.0, and deliberately kept.** This specification is static: wage growth on
+contemporaneous driver growth, no lags and no lagged dependent variable, so its coefficient is a
+contemporaneous association and not the cumulative multiplier the paper reports. It also uses
+every available first difference, 389 observations, where a dynamic panel matching the primary
+specification uses 363. The two are different objects and were briefly compared as though they
+were not. :mod:`wage_transmission.models.dynamic_panel` now provides the comparable estimator,
+and the paper reports that one instead; this tool and its output remain as a historical artefact
+of the earlier release. Do not wire its output back into the manuscript.
 """
 
 from __future__ import annotations
