@@ -57,9 +57,13 @@ Using it would have meant dropping the year effects or applying a bias formula o
 derivation. The simulation correction handles both fixed-effect dimensions and the unbalanced
 endpoint directly.
 
-It is verified rather than asserted. On panels generated with known parameters, uncorrected LSDV
-reproduces the textbook `-(1+g)/T` bias almost exactly and the correction removes better than
-nine tenths of it. That check runs in the test suite.
+It is verified rather than asserted. On panels generated with known parameters at this sample's
+dimensions, the correction removes 88% to 97% of the LSDV bias across true persistence from 0.3
+to 0.7. The uncorrected bias is of the sign and order `-(1+g)/T` predicts but does not track it
+closely -- it stays near -0.045 as `g` rises, where the approximation moves from -0.046 to
+-0.061 -- because the approximation is derived without the exogenous regressors this design has.
+That is a reason to measure the correction rather than assume it, and the check runs in the test
+suite.
 
 **The correction addresses dynamic fixed-effects bias. It does not solve contemporaneous
 endogeneity between productivity and wages.** The coefficient remains a reduced-form conditional

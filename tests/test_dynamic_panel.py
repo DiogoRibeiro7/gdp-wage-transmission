@@ -149,7 +149,9 @@ def test_bias_correction_removes_most_of_the_dynamic_fixed_effects_bias() -> Non
     lsdv_bias = float(np.mean(lsdv)) - gamma
     corrected_bias = float(np.mean(corrected)) - gamma
     assert lsdv_bias < -0.02, "the uncorrected estimator should show the downward Nickell bias"
-    assert abs(corrected_bias) < abs(lsdv_bias) / 3.0
+    # Measured removal is 88-97% across gamma in [0.3, 0.7]; the floor here sits below that so
+    # the test guards the manuscript's claim without tripping on simulation noise.
+    assert abs(corrected_bias) < abs(lsdv_bias) / 5.0
 
 
 def test_circular_blocks_wrap_and_return_the_requested_length() -> None:
