@@ -12,7 +12,7 @@ import hashlib
 import json
 import math
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -908,13 +908,11 @@ def _source_table(config_path: Path) -> str | None:
         header="Provider & Dataset or dataflow & Selection & Use",
         rows=rows,
         note=(
-            "Generated from the configuration the download layer uses, so the identifiers cannot "
-            "drift from what was retrieved. Every series is requested for the thirteen configured "
-            "countries over 1995--2025 at annual frequency; the country list and window are the "
-            "same for all sources and are therefore not repeated per row. Each extract is stored "
-            "unchanged with its query URL, "
-            "retrieval timestamp and SHA-256 digest. A response carrying more than one unit or "
-            "price base is rejected rather than aggregated."
+            "Every series is requested for the thirteen countries listed in "
+            "Table~\\ref{tab:country-estimates} over 1995--2025 at annual frequency; the country "
+            "list and window are the same for all sources and are therefore not repeated per row. "
+            "A response carrying more than one unit or price base is rejected rather than "
+            "aggregated, so no series mixes price bases."
         ),
     )
 
@@ -993,6 +991,17 @@ _FIXED_EFFECT_LABEL = {
 _ESTIMATOR_LABEL = {"lsdv": "LSDV", "corrected": "LSDVC"}
 
 
+def _coverage_cell(row: Mapping[str, Any], prefix: str) -> str:
+    """A coverage proportion with its exact Monte Carlo interval."""
+    point = _fmt_pct_fraction(row[f"{prefix}_coverage"])
+    interval = row.get(f"{prefix}_coverage_ci")
+    if not isinstance(interval, list) or len(interval) != 2:
+        return point
+    low = _fmt_pct_fraction(interval[0])
+    high = _fmt_pct_fraction(interval[1])
+    return f"{point} [{low}, {high}]"
+
+
 def _validation_tables(dossier_dir: Path) -> list[tuple[str, str]]:
     """Render the Monte Carlo evidence for the estimator and for its interval.
 
@@ -1065,9 +1074,12 @@ def _validation_tables(dossier_dir: Path) -> list[tuple[str, str]]:
                         "draws per evaluation and at most "
                         f"{int(design.get('bias_correction_max_iterations', 0))} fixed-point "
                         "iterations, stopping at a tolerance of $10^{-7}$; every draw converged. "
-                        "``Removed'' is one minus the ratio of the corrected to the uncorrected "
-                        "bias, which is unstable where the uncorrected bias is small, so the "
-                        "absolute biases are given beside it. The driver path is strictly "
+                        "``Removed'' is the proportional reduction in \\emph{absolute} bias, "
+                        "$1-|\\text{LSDVC bias}|/|\\text{LSDV bias}|$. Taking absolute values "
+                        "matters: at $\\gamma=0.50$ the residual bias has the opposite sign to the "
+                        "original, so the ratio of the signed quantities would exceed one. The "
+                        "statistic is also unstable where the uncorrected bias is small, which is "
+                        "why both signed biases are printed beside it. The driver path is strictly "
                         "exogenous by construction, so this measures recovery under correct "
                         "specification and says nothing about endogeneity."
                     ),
@@ -1079,13 +1091,12 @@ def _validation_tables(dossier_dir: Path) -> list[tuple[str, str]]:
     coverage_rows = payload.get("coverage_study") or []
     if coverage_rows:
         rows = [
-            "{} & {} & {} & {} & {} & {} & {} & {} \\\\".format(
+            "{} & {} & {} & {} & {} & {} & {} \\\\".format(
                 _fmt_float(row["true_persistence"], 2),
                 _fmt_float(row["true_multiplier"]),
-                _fmt_pct_fraction(row["percentile_coverage"]),
+                _coverage_cell(row, "percentile"),
+                _coverage_cell(row, "reverse_percentile"),
                 _fmt_float(row["percentile_mean_width"]),
-                _fmt_pct_fraction(row["reverse_percentile_coverage"]),
-                _fmt_float(row["reverse_percentile_mean_width"]),
                 _fmt_float(row["median_displacement"], 4),
                 int(row["completed"]),
             )
@@ -1101,10 +1112,10 @@ def _validation_tables(dossier_dir: Path) -> list[tuple[str, str]]:
                         "$\\Theta_{\\mathrm{panel}}$."
                     ),
                     label="tab:validation-coverage",
-                    columns="rrrrrrrr",
+                    columns="rrllrrr",
                     header=(
-                        r"True $\gamma$ & True $\Theta$ & Pctl.\ cover & Pctl.\ width & "
-                        r"Rev.\ cover & Rev.\ width & Displacement & Draws"
+                        r"True $\gamma$ & True $\Theta$ & Percentile coverage & "
+                        r"Reverse coverage & Width & Displacement & Draws"
                     ),
                     rows=rows,
                     note=(
@@ -1120,12 +1131,19 @@ def _validation_tables(dossier_dir: Path) -> list[tuple[str, str]]:
                         "is the standard response to a displaced bootstrap distribution. "
                         "``Displacement'' is the mean gap between the median replication and the "
                         "point estimate, negative where block concatenation attenuates "
-                        "persistence. Nominal coverage is "
-                        f"{_fmt_pct_fraction(first.get('nominal_coverage'))}. The bootstrap "
-                        "replication count here is below the "
-                        "4,999 used for the reported estimates, because coverage requires the "
-                        "whole procedure to be repeated; it affects interval resolution, not the "
-                        "comparison between the two interval types."
+                        "persistence. Reflection preserves interval length exactly, so the two "
+                        "interval types share the width column. Nominal coverage is "
+                        f"{_fmt_pct_fraction(first.get('nominal_coverage'))}; bracketed figures "
+                        "are exact (Clopper--Pearson) Monte Carlo intervals for the coverage "
+                        "estimate itself, which is a proportion from a finite number of draws and "
+                        "should not be read to three digits. "
+                        f"Each draw uses {int(first.get('bootstrap_replications', 0))} bootstrap "
+                        "replications rather than the 4,999 behind the reported estimates, because "
+                        "coverage requires the whole procedure to be repeated. Fewer replications "
+                        "leave more simulation noise in each interval's endpoints, which can move "
+                        "measured coverage as well as its resolution, so this table is a "
+                        "calibration \\emph{diagnostic}: it establishes that the intervals do not "
+                        "reach their nominal level, not the exact level they do reach."
                     ),
                     size="scriptsize",
                 ),
@@ -1157,6 +1175,7 @@ def _dynamic_panel_table(dossier_dir: Path) -> str | None:
     if reported.empty:
         return None
 
+    calibrated = _interval_is_calibrated(dossier_dir)
     rows: list[str] = []
     for driver in ("productivity_per_worker", "productivity"):
         for effects in ("country_and_year", "country"):
@@ -1181,7 +1200,7 @@ def _dynamic_panel_table(dossier_dir: Path) -> str | None:
                     if prefix == "corrected"
                     else record["lsdv_driver_sum"]
                 )
-                gate = "eligible" if _bool_value(record["claim_eligible"]) else "not eligible"
+                gate = _gate_label(_bool_value(record["claim_eligible"]), calibrated)
                 rows.append(
                     "{} & {} & {} & {} & {} & {} & {} & {} & {} & {} \\\\".format(
                         _escape_latex(_driver_label(driver)),
@@ -1202,18 +1221,55 @@ def _dynamic_panel_table(dossier_dir: Path) -> str | None:
     return _table_wrapper(
         caption=(
             "Dynamic panel: cumulative transmission "
-            "$\\Theta_{\\mathrm{panel}}=(\\sum_j\\hat{\\beta}_j)/(1-\\hat{\\gamma})$."
+            "$\\Theta_{\\mathrm{panel}}=(\\sum_j\\hat{\\beta}_j)/(1-\\hat{\\gamma})$. "
+            "The intervals are nominal; their measured coverage is lower."
         ),
         label="tab:dynamic-panel",
-        columns="p{1.9cm}p{1.45cm}lrrrrrll",
+        columns="p{1.85cm}p{1.4cm}lrrrrrlp{1.35cm}",
         header=(
             r"Driver & Fixed effects & Est. & Countries & Reg.\ $N$ & $\hat{\gamma}$ & "
-            r"$\sum\hat{\beta}_j$ & $\hat{\Theta}$ & Bootstrap 95\% CI & Gate"
+            r"$\sum\hat{\beta}_j$ & $\hat{\Theta}$ & Nominal 95\% CI & Gate"
         ),
         rows=rows,
         note=_dynamic_panel_note(frame, dossier_dir),
         size="scriptsize",
     )
+
+
+def _interval_is_calibrated(dossier_dir: Path) -> bool | None:
+    """Whether the measured coverage reaches nominal, or None when it has not been measured.
+
+    The comparison uses the upper end of the exact Monte Carlo interval, so a coverage estimate
+    is only called a failure when the experiment can distinguish it from the nominal level.
+    """
+    path = dossier_dir / "dynamic_panel_validation.json"
+    if not path.is_file():
+        return None
+    rows = _load_json_object(path).get("coverage_study") or []
+    if not rows:
+        return None
+    for row in rows:
+        nominal = float(row["nominal_coverage"])
+        interval = row.get("percentile_coverage_ci")
+        upper = (
+            float(interval[1])
+            if isinstance(interval, list) and len(interval) == 2
+            else float(row["percentile_coverage"])
+        )
+        if upper < nominal:
+            return False
+    return True
+
+
+def _gate_label(claim_eligible: bool, calibrated: bool | None) -> str:
+    """Report the estimation gate and the interval's calibration as the separate things they are."""
+    if not claim_eligible:
+        return "not eligible"
+    if calibrated is False:
+        return "estimation only"
+    if calibrated is None:
+        return "estimation only"
+    return "eligible"
 
 
 def _coverage_warning(dossier_dir: Path, persistence: float) -> str:
@@ -1276,12 +1332,19 @@ def _dynamic_panel_note(frame: pd.DataFrame, dossier_dir: Path) -> str:
         }
     )
     gate_text = (
-        "No specification failed a pre-specified gate."
+        "No specification failed a pre-specified estimation gate."
         if not failures
-        else "Failed gates, recorded rather than dropped: "
+        else "Failed estimation gates, recorded rather than dropped: "
         + _escape_latex(", ".join(failures).replace("_", " "))
         + "."
     )
+    if _interval_is_calibrated(dossier_dir) is not True:
+        gate_text += (
+            " ``Estimation only'' in the gate column means exactly that: the pre-specified "
+            "estimation gates passed and the interval's calibration failed. The point estimates "
+            "stand; the intervals are reported for completeness and are not valid 95\\% "
+            "intervals, so no inferential statement in this paper rests on one."
+        )
 
     return (
         "Estimated on the same dynamic structure as the country models, "
@@ -1295,9 +1358,11 @@ def _dynamic_panel_note(frame: pd.DataFrame, dossier_dir: Path) -> str:
         "separately and never pooled. "
         "LSDVC is bias-corrected LSDV; LSDV is reported only to show the size of the correction, "
         "and only the corrected estimator is substantive. The correction is simulation-based "
-        "rather than the analytical Kiviet--Bruno expansion, which assumes strictly exogenous "
-        "regressors with individual effects only and does not accommodate the year effects the "
-        "primary specification carries. "
+        "rather than the analytical Kiviet--Bruno expansion. Year effects are not the reason: "
+        "time dummies are strictly exogenous regressors like any other. The expansion assumes "
+        "errors that are homoskedastic and independent across units, which this panel's are not, "
+        "and simulation can carry cross-country dependence into the bias evaluation by resampling "
+        "whole cross-sectional vectors. The analytical correction was not implemented here. "
         "The bias correction addresses dynamic fixed-effects bias. It does not solve "
         "contemporaneous endogeneity between productivity and wages. The coefficient remains a "
         "reduced-form conditional association. "

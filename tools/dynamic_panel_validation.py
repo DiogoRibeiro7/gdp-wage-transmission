@@ -44,6 +44,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from scipy.stats import beta
 
 from wage_transmission.data.common import sha256_bytes
 from wage_transmission.models.dynamic_panel import (
@@ -89,6 +90,33 @@ class Calibration:
             "year_effect_sd": self.year_effect_sd,
             "error_common_share": self.error_common_share,
         }
+
+
+def clopper_pearson(successes: int, trials: int, alpha: float = 0.05) -> tuple[float, float]:
+    """Exact binomial interval for a coverage proportion.
+
+    A coverage estimate is itself an estimate. Reporting it to three digits from a few hundred
+    draws implies a precision the experiment does not have, so the interval travels with it.
+    """
+    if trials <= 0:
+        return (float("nan"), float("nan"))
+    lower = (
+        0.0 if successes == 0 else float(beta.ppf(alpha / 2.0, successes, trials - successes + 1))
+    )
+    upper = (
+        1.0
+        if successes == trials
+        else float(beta.ppf(1.0 - alpha / 2.0, successes + 1, trials - successes))
+    )
+    return (lower, upper)
+
+
+def _binomial_se(successes: int, trials: int) -> float:
+    """Monte Carlo standard error of a coverage proportion."""
+    if trials <= 0:
+        return float("nan")
+    share = successes / trials
+    return float(np.sqrt(share * (1.0 - share) / trials))
 
 
 def calibrate(panel_path: Path, driver_column: str) -> Calibration:
@@ -348,9 +376,13 @@ def coverage_study(
                 "block_length": block_length,
                 "nominal_coverage": 1.0 - alpha,
                 "percentile_coverage": percentile_hits / completed if completed else float("nan"),
+                "percentile_coverage_ci": clopper_pearson(percentile_hits, completed),
+                "percentile_coverage_mc_se": _binomial_se(percentile_hits, completed),
                 "reverse_percentile_coverage": (
                     reverse_hits / completed if completed else float("nan")
                 ),
+                "reverse_percentile_coverage_ci": clopper_pearson(reverse_hits, completed),
+                "reverse_percentile_coverage_mc_se": _binomial_se(reverse_hits, completed),
                 "percentile_mean_width": float(np.mean(percentile_widths)) if completed else 0.0,
                 "reverse_percentile_mean_width": (
                     float(np.mean(reverse_widths)) if completed else 0.0
@@ -359,8 +391,10 @@ def coverage_study(
                 "seconds": time.monotonic() - started,
             }
         )
+        low, high = rows[-1]["percentile_coverage_ci"]
         print(
             f"  cover gamma={gamma:.2f}  percentile={rows[-1]['percentile_coverage']:.3f}"
+            f" [{low:.3f}, {high:.3f}]"
             f"  reverse={rows[-1]['reverse_percentile_coverage']:.3f}"
             f"  ({rows[-1]['seconds']:.0f}s)",
             flush=True,
@@ -378,8 +412,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--driver", default="productivity_per_worker")
     parser.add_argument("--bias-replications", type=int, default=300)
-    parser.add_argument("--coverage-replications", type=int, default=150)
-    parser.add_argument("--bootstrap-replications", type=int, default=499)
+    parser.add_argument("--coverage-replications", type=int, default=400)
+    parser.add_argument("--bootstrap-replications", type=int, default=999)
     parser.add_argument("--draws", type=int, default=60)
     parser.add_argument("--iterations", type=int, default=12)
     parser.add_argument("--block-length", type=int, default=4)
