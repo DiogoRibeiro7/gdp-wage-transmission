@@ -372,7 +372,7 @@ def _reliability_table(reliability: pd.DataFrame, core: pd.DataFrame) -> str:
     return _table_wrapper(
         caption="Supporting models, their estimates, and their pre-specified reliability gates.",
         label="tab:reliability-gates",
-        columns="p{2.2cm}p{2.1cm}lp{2.05cm}p{3.35cm}",
+        columns="P{2.5cm}P{2.2cm}lP{2.0cm}P{4.4cm}",
         header="Driver & Model & Estimate & Claim status & Gate result",
         rows=rows,
         note=(
@@ -460,9 +460,10 @@ def _country_estimates_table(cross: pd.DataFrame, dossier_dir: Path) -> str | No
             "These estimates are the primary cross-country object; the summary in "
             "Table~\\ref{tab:cross-country} is secondary and should be read together with the "
             "heterogeneity statistic. Intervals are normal approximations from the HAC standard "
-            "error. Country estimates over a common period are not independent, since countries "
-            "share global and European shocks, so a summary treating them as independent may "
-            "understate uncertainty."
+            "error. Because the countries share a common observation period and common shocks, "
+            "independence between the country estimates cannot be assumed; their covariance was "
+            "not estimated, so the direction of any resulting error in a summary that treats them "
+            "as independent is unknown."
         ),
     )
 
