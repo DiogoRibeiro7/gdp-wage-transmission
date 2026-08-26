@@ -1485,6 +1485,27 @@ def _values_file(
         define("valReCi", interval(estimate - 1.96 * std_error, estimate + 1.96 * std_error))
         define("valMedianCountry", _fmt_float(row["median_cumulative_transmission"]))
         define("valISquared", _fmt_pct_fraction(float(row["i_squared_percent"]) / 100.0))
+        if "q25_cumulative_transmission" in cross.columns:
+            define("valIqrLow", _fmt_float(row["q25_cumulative_transmission"]))
+        if "q75_cumulative_transmission" in cross.columns:
+            define("valIqrHigh", _fmt_float(row["q75_cumulative_transmission"]))
+        define("valCountryCount", str(int(row["n_countries"])))
+        if "positive_country_share" in cross.columns:
+            positive = round(float(row["positive_country_share"]) * int(row["n_countries"]))
+            define("valPositiveCount", str(positive))
+        estimates_path = Path(str(row.get("country_estimates_path") or ""))
+        if not estimates_path.is_file():
+            estimates_path = dossier_dir / estimates_path.name
+        if estimates_path.is_file():
+            column = pd.read_csv(estimates_path)["distributed_lag_cumulative"]
+            define("valCountryMin", _fmt_float(column.min()))
+            define("valCountryMax", _fmt_float(column.max()))
+
+    hour_cross = cross.loc[cross["driver"] == "productivity"]
+    if not hour_cross.empty:
+        row = hour_cross.iloc[0]
+        define("valHourMedian", _fmt_float(row["median_cumulative_transmission"]))
+        define("valHourRe", _fmt_float(row["random_effect_estimate"]))
         summary = _verified_summary(cross, dossier_dir, "productivity_per_worker")
         if "tau_squared" in summary:
             define("valTauSquared", _fmt_float(summary["tau_squared"], 4))
