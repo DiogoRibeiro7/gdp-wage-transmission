@@ -1381,10 +1381,10 @@ def _dynamic_panel_table(dossier_dir: Path) -> str | None:
             "The intervals are nominal and unvalidated at the replication count reported here."
         ),
         label="tab:dynamic-panel",
-        columns="p{1.85cm}p{1.4cm}lrrrrrlp{1.35cm}",
+        columns="p{1.6cm}p{1.2cm}lrrrrrlp{1.75cm}",
         header=(
             r"Driver & Fixed effects & Est. & Countries & Reg.\ $N$ & $\hat{\gamma}$ & "
-            r"$\sum\hat{\beta}_j$ & $\hat{\Theta}$ & Nominal 95\% CI & Gate"
+            r"$\sum\hat{\beta}_j$ & $\hat{\Theta}$ & Nominal 95\% CI & Status"
         ),
         rows=rows,
         size="scriptsize",
@@ -1419,12 +1419,10 @@ def _interval_is_calibrated(dossier_dir: Path) -> bool | None:
 def _gate_label(claim_eligible: bool, calibrated: bool | None) -> str:
     """Report the estimation gate and the interval's calibration as the separate things they are."""
     if not claim_eligible:
-        return "not eligible"
-    if calibrated is False:
-        return "interval not validated"
-    if calibrated is None:
-        return "interval not validated"
-    return "eligible"
+        return "estimation gate failed"
+    if calibrated is not True:
+        return "estimation passed; interval not validated"
+    return "estimation passed; interval validated"
 
 
 def _coverage_warning(dossier_dir: Path, persistence: float) -> str:
@@ -1498,7 +1496,7 @@ def _dynamic_panel_note(frame: pd.DataFrame, dossier_dir: Path) -> str:
     )
     if _interval_is_calibrated(dossier_dir) is not True:
         gate_text += (
-            " ``Interval not validated'' means the estimation gates passed while the "
+            " The status column names both halves of the verdict. The "
             "diagnostic in Appendix~\\\\ref{sec:validation}, which resamples fewer times than "
             "the reported intervals do, did not confirm nominal coverage."
         )
@@ -1879,8 +1877,8 @@ def _panel_prose(frame: pd.DataFrame, dossier_dir: Path) -> str:
     )
     if _interval_is_calibrated(dossier_dir) is not True:
         gates += (
-            "The gate column reads ``interval not validated'' because the estimation gates "
-            "passed while the coverage diagnostic did not confirm the nominal level. "
+            "The status column records both halves of the verdict: the estimation gates "
+            "passed, and the coverage diagnostic did not confirm the nominal level. "
         )
 
     return (
