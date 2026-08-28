@@ -23,8 +23,8 @@ identifiers:
     value: 10.5281/zenodo.22080269
     description: Concept DOI covering all versions; cite this for any version
   - type: doi
-    value: 10.5281/zenodo.22093726
-    description: Version DOI for release 0.8.2
+    value: 10.5281/zenodo.22141731
+    description: Version DOI for release 0.8.3
 repository-code: "https://github.com/DiogoRibeiro7/gdp-wage-transmission"
 url: "https://github.com/DiogoRibeiro7/gdp-wage-transmission"
 keywords:
