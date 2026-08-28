@@ -990,8 +990,20 @@ def _benchmark_payload(dossier_dir: Path) -> dict[str, Any]:
     return _load_json_object(path)
 
 
+def _coverage_interval(row: Mapping[str, Any]) -> tuple[float, float]:
+    """The Monte Carlo interval for a percentile-coverage estimate."""
+    interval = row.get("percentile_coverage_ci")
+    if isinstance(interval, list) and len(interval) == 2:
+        return (float(interval[0]), float(interval[1]))
+    share = float(row["percentile_coverage"])
+    trials = int(row.get("completed") or row.get("replications") or 0)
+    if trials <= 0:
+        return (share, share)
+    return _clopper_pearson(round(share * trials), trials)
+
+
 def _benchmark_prose(dossier_dir: Path) -> str:
-    """Interpret the independent-error benchmark, reading the verdict off the artefact."""
+    """Interpret the independent-error benchmark, one persistence at a time."""
     benchmark = _benchmark_payload(dossier_dir)
     independent = benchmark.get("independent_coverage_study") or []
     path = dossier_dir / "dynamic_panel_validation.json"
@@ -1001,45 +1013,52 @@ def _benchmark_prose(dossier_dir: Path) -> str:
         float(row["true_persistence"]): row
         for row in _load_json_object(path).get("coverage_study") or []
     }
-    paired = [
-        (float(entry["percentile_coverage"]), float(dependent[key]["percentile_coverage"]))
-        for entry in independent
-        if (key := float(entry["true_persistence"])) in dependent
-    ]
-    if not paired:
-        return ""
 
     nominal = 0.95
-    worst_independent = min(share for share, _ in paired)
-    largest_gap = max(abs(share - other) for share, other in paired)
-    # The shortfall that survives with dependence removed belongs to the resampling scheme.
-    if worst_independent < nominal - 2.0 * largest_gap:
-        verdict = (
-            "The interval falls short of its nominal level even when the errors are independent, "
-            "and by more than dependence moves it. The dominant cause is therefore the resampling "
-            "scheme rather than cross-sectional dependence: gluing blocks together breaks the "
-            "dynamic relation at each join, and the persistence estimated within a replication is "
-            "attenuated accordingly. Dependence adds to the shortfall without accounting for most "
-            "of it."
-        )
-    elif worst_independent >= nominal - 0.02:
-        verdict = (
-            "With independent errors the interval is close to its nominal level, so the shortfall "
-            "reported above is attributable mainly to cross-sectional dependence rather than to "
-            "the resampling scheme."
-        )
-    else:
-        verdict = (
-            "Both mechanisms contribute materially. The interval undercovers with independent "
-            "errors, so part of the shortfall belongs to the resampling scheme, and dependence "
-            "widens the gap further."
-        )
+    findings: list[str] = []
+    for entry in sorted(independent, key=lambda row: float(row["true_persistence"])):
+        gamma = float(entry["true_persistence"])
+        paired = dependent.get(gamma)
+        if paired is None:
+            continue
+        independent_ci = _coverage_interval(entry)
+        dependent_ci = _coverage_interval(paired)
+        independent_reaches = independent_ci[0] <= nominal <= independent_ci[1]
+        dependent_reaches = dependent_ci[0] <= nominal <= dependent_ci[1]
+        # Non-overlapping Monte Carlo intervals are the evidence that the designs differ at all.
+        distinguishable = dependent_ci[1] < independent_ci[0] or independent_ci[1] < dependent_ci[0]
+        label = f"At $\\gamma={_fmt_float(gamma, 2)}$"
+        if independent_reaches and not dependent_reaches:
+            findings.append(
+                f"{label} the benchmark reaches its nominal level while the dependent design does "
+                "not, so what the interval loses there it loses to cross-sectional dependence."
+            )
+        elif independent_reaches and dependent_reaches:
+            findings.append(f"{label} neither design falls short.")
+        elif distinguishable:
+            findings.append(
+                f"{label} both designs fall short and they are distinguishable, so the resampling "
+                "scheme and the dependence each contribute."
+            )
+        else:
+            findings.append(
+                f"{label} both designs fall short by amounts this experiment cannot tell apart, so "
+                "the shortfall there belongs to the resampling scheme and dependence does not "
+                "measurably add to it."
+            )
+    if not findings:
+        return ""
+
     return (
         "Table~\\ref{tab:validation-benchmark} separates the two mechanisms that can push the "
         "interval below its nominal level. Removing the common factor while holding each "
         "country's total error variance at $c_i^2+d_i^2$ changes the dependence and nothing else, "
         "so the difference between the columns is what dependence contributes and the remaining "
-        "shortfall is what the resampling scheme contributes. " + verdict
+        "shortfall is what the resampling scheme contributes. "
+        + " ".join(findings)
+        + " No separate arm is run for the design carrying one disturbance common to every "
+        "country, because Table~\\ref{tab:validation-dependence} shows it is indistinguishable "
+        "from independent errors once country and year means are swept out."
     )
 
 
