@@ -1,5 +1,94 @@
 # Changelog
 
+## v0.8.3 — what the paper claims, and what it merely narrates — 2026-08-26
+
+A publication release. No source file, no configuration file and no estimate changed; the
+analysis-tree digest is unchanged and the results remain the ones 0.8.0 produced. What changed is
+the manuscript and the report formatter, across four rounds of review.
+
+### Claims the paper could not support
+
+**Independence was asserted as established.** Four passages said the country estimates "are not"
+independent, that "the independence its interval assumes does not hold", and that "the effective
+number of independent observations is smaller than thirteen". Two paragraphs later the same
+subsection says the covariance was never estimated and its sign is unknown. Common shocks make
+independence doubtful; they demonstrate nothing about the covariance of the estimators. All four
+now say independence cannot be assumed, and the effective-number claim is conditional on that
+covariance being positive, with the opposite case stated. A further four passages spoke of the
+paper "rejecting" independence or of the assumption being "not satisfied"; they now say it declines
+to assume it.
+
+**A number had drifted.** The random-effects interval was typed by hand as [0.099, 0.519] in four
+places while the generated value, from the unrounded summary, is [0.100, 0.518]. The mechanism to
+prevent that existed and the prose was not using it, so the remaining quoted statistics -- the
+median, the interquartile range, the range, the count of positive coefficients, I-squared, the
+per-hour median -- now come from generated macros too. Every three-decimal figure in the body
+traces to a generated fragment.
+
+**The panel interval was still being sold as an advantage.** Section 7.3 described its bootstrap as
+carrying cross-country dependence into the resampling "rather than assumed away", three sections
+after the paper concluded the same interval fails its coverage check. It now says the design goal
+was not achieved. Table 5's note no longer concludes that the intervals are "too narrow" -- the
+inference the methods section explicitly refuses to draw -- and says instead that the simulation
+shows they do not attain nominal coverage without identifying a valid scalar widening or an
+alternative calibrated interval.
+
+**"Pre-specified" was doing work it had not earned.** The panel was designed after the same sample
+had been analysed, but its interval, gates, sensitivities and fixed-effect variants were all called
+pre-specified. The term is now reserved for the country-level design, which was fixed before any
+data were retrieved; the panel is "prospectively specified" throughout, and the abstract separates
+the two guarantees in its opening.
+
+### Repository narration removed from the manuscript
+
+The paper narrated its own infrastructure: digests, query manifests, commit ordering, dossiers,
+archive immutability, package versions, and which tables were generated mechanically. None of it is
+a fact about wages and productivity and none of it is checkable from the page. The scientific
+provenance stays, restated as ordinary methodology: the two providers, the concepts and units, the
+retrieval dates, and that the second retrieval returned the observations already examined.
+
+"Data and code availability" becomes a short "Data availability" limited to the OECD and Eurostat
+sources. The software project appears once in the bibliography, reached with `\nocite`, carrying
+the version DOI, the concept DOI and the repository URL, and is not cited in the prose.
+
+### The coverage experiment is larger and reports its own uncertainty
+
+400 outer draws at 999 bootstrap replications each, against 150 at 499. The verdict is unchanged
+and sharper: at a true persistence of 0.15 the percentile interval covers 89.5% with a Monte Carlo
+interval of [86.1%, 92.3%], which excludes the nominal 95% decisively where the smaller
+experiment's upper bound of 90.0% did not. At 0.45 it covers 55.8% [50.7%, 60.7%]. Every
+proportion now carries an exact Clopper-Pearson interval, and Appendix B states that this is a
+calibration diagnostic rather than a calibration.
+
+### Smaller
+
+- Table 10's "Removed" column was defined as one minus the ratio of the corrected to the
+  uncorrected bias, which at gamma = 0.50 would give 102.9% rather than the 97.2% printed. The code
+  takes absolute values; the note now says so and warns that the statistic hides a sign change.
+- The panel was described as "balanced at 31 observations per country except the United Kingdom",
+  which is a contradiction. It is mildly unbalanced, and coverage now reads 1995-2025 for twelve
+  countries and 1995-2024 for the thirteenth.
+- Section 5.2 claimed the country-level bootstrap endpoints "can be read as interval estimates" on
+  the replication count alone. Resolution and coverage are different things, and only the panel
+  bootstrap's coverage was measured; the asymmetry is now stated.
+- The residual-ADF description, the introduction's duplicated contribution, a clause repeated
+  verbatim across two paragraphs, and a sentence hedging independence twice in different directions.
+- Table 2 no longer hyphenates "unsup-ported" or "GDP per per-son employed": a ragged-right column
+  type removes the pressure to hyphenate in narrow paragraph columns.
+- Higgins and Jochmans (2025) cited where the reverse-percentile interval is discussed, and the
+  OECD undated entry finally renders as `(OECD, n.d.)` -- BibTeX strips the periods when building a
+  citation label, so the in-text form is set with `\defcitealias`.
+- The PDF's creation date was a year wrong because `SOURCE_DATE_EPOCH` was typed by hand;
+  `make paper-pdf VINTAGE=YYYY-MM-DD` derives it, and the forest plot no longer embeds a wall-clock
+  stamp of its own.
+
+### Validation
+
+167 tests pass. `ruff check`, `ruff format --check` and `mypy --strict` clean. Manuscript: 26 pages,
+preflight clean, packet audit clean, 36 references all cited, no undefined references or citations,
+no sparse pages.
+
+
 ## v0.8.2 — affiliation correction — 2026-08-25
 
 ESMAD has been renamed from Escola Superior de Media Artes e Design to Faculdade de Media Artes e
