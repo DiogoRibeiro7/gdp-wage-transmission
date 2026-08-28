@@ -1609,7 +1609,7 @@ The primary specification uses {_escape_latex(driver)}. Over {int(row["start_yea
 
 {cross_sentence}
 
-\\paragraph{{Reliability gates.}} Supporting models eligible for substantive interpretation: {eligible_text}. Supporting models not eligible under the pre-specified gates: {ineligible_text}. Non-eligible estimates remain reported in Table~\\ref{{tab:reliability-gates}} rather than being omitted.
+Supporting models eligible for substantive interpretation: {eligible_text}. Supporting models not eligible under the pre-specified gates: {ineligible_text}. Non-eligible estimates remain reported in Table~\\ref{{tab:reliability-gates}} rather than being omitted.
 """
 
 
