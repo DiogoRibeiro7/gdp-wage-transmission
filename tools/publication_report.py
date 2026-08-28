@@ -967,6 +967,21 @@ def _coverage_cell(row: Mapping[str, Any], prefix: str) -> str:
     return f"{point} [{low}, {high}]"
 
 
+def _has_finite(entry: Mapping[str, Any], key: str) -> bool:
+    """Whether a recorded statistic is present and usable."""
+    value = entry.get(key)
+    return isinstance(value, (int, float)) and math.isfinite(float(value))
+
+
+def _statistic_cell(entry: Mapping[str, Any], key: str) -> str:
+    """A simulated statistic with the standard error of its mean, when one was recorded."""
+    point = _fmt_float(entry.get(key))
+    error = entry.get(f"{key}_se")
+    if error is None or not isinstance(error, (int, float)) or not math.isfinite(float(error)):
+        return point
+    return f"{point} ({_fmt_float(error, 4)})"
+
+
 def _benchmark_payload(dossier_dir: Path) -> dict[str, Any]:
     """The design record, if the benchmark run has produced one."""
     path = dossier_dir / "dynamic_panel_benchmark.json"
@@ -1123,10 +1138,10 @@ def _design_tables(dossier_dir: Path) -> list[tuple[str, str]]:
         rows.append(
             "{} & {} & {} & {} & {} \\\\".format(
                 _escape_latex(label),
-                _fmt_float(entry["raw_mean_absolute_correlation"]),
-                _fmt_float(entry["within_mean_absolute_correlation"]),
-                _fmt_float(entry["raw_leading_eigenvalue_share"]),
-                _fmt_float(entry["within_leading_eigenvalue_share"]),
+                _statistic_cell(entry, "raw_mean_absolute_correlation"),
+                _statistic_cell(entry, "within_mean_absolute_correlation"),
+                _statistic_cell(entry, "raw_leading_eigenvalue_share"),
+                _statistic_cell(entry, "within_leading_eigenvalue_share"),
             )
         )
     observed_absolute = dependence.get("observed_within_mean_absolute_correlation")
@@ -1141,6 +1156,28 @@ def _design_tables(dossier_dir: Path) -> list[tuple[str, str]]:
                 _fmt_float(observed_leading),
             )
         )
+    replications = int(dependence.get("replications") or 0)
+    # Promise the standard errors only if they are actually printed. The cells fall back to a bare
+    # mean when the artefact predates the field, and a caption must not describe a missing column.
+    has_errors = any(
+        _has_finite(dependence.get(key) or {}, f"{side}_{statistic}_se")
+        for key, _ in design_labels
+        for side in ("raw", "within")
+        for statistic in ("mean_absolute_correlation", "leading_eigenvalue_share")
+    )
+    if replications and has_errors:
+        suffix = (
+            f" Simulated rows are means over {replications} drawn panels, with the standard error "
+            "of the mean in parentheses; the observed row is computed once, from the estimated "
+            "residuals."
+        )
+    elif replications:
+        suffix = (
+            f" Simulated rows are means over {replications} drawn panels; the observed row is "
+            "computed once, from the estimated residuals."
+        )
+    else:
+        suffix = ""
     if rows:
         tables.append(
             (
@@ -1148,7 +1185,7 @@ def _design_tables(dossier_dir: Path) -> list[tuple[str, str]]:
                 _table_wrapper(
                     caption=(
                         "Cross-country dependence left by each candidate error design, before "
-                        "and after country and year means are swept out."
+                        "and after country and year means are swept out." + suffix
                     ),
                     label="tab:validation-dependence",
                     columns="P{4.3cm}rrrr",
@@ -1322,7 +1359,7 @@ def _dynamic_panel_table(dossier_dir: Path) -> str | None:
         caption=(
             "Dynamic panel: cumulative transmission "
             "$\\Theta_{\\mathrm{panel}}=(\\sum_j\\hat{\\beta}_j)/(1-\\hat{\\gamma})$. "
-            "The intervals are nominal; their measured coverage is lower."
+            "The intervals are nominal and unvalidated at the replication count reported here."
         ),
         label="tab:dynamic-panel",
         columns="p{1.85cm}p{1.4cm}lrrrrrlp{1.35cm}",
@@ -1365,9 +1402,9 @@ def _gate_label(claim_eligible: bool, calibrated: bool | None) -> str:
     if not claim_eligible:
         return "not eligible"
     if calibrated is False:
-        return "estimation only"
+        return "interval not validated"
     if calibrated is None:
-        return "estimation only"
+        return "interval not validated"
     return "eligible"
 
 
@@ -1442,8 +1479,9 @@ def _dynamic_panel_note(frame: pd.DataFrame, dossier_dir: Path) -> str:
     )
     if _interval_is_calibrated(dossier_dir) is not True:
         gate_text += (
-            " ``Estimation only'' means the estimation gates passed and the interval's "
-            "calibration did not; Appendix~\\\\ref{sec:validation} measures it."
+            " ``Interval not validated'' means the estimation gates passed while the "
+            "diagnostic in Appendix~\\\\ref{sec:validation}, which resamples fewer times than "
+            "the reported intervals do, did not confirm nominal coverage."
         )
 
     return (
@@ -1700,10 +1738,12 @@ def _primary_results_text(
             f"{_fmt_float(c['random_effect_estimate'])} with $I^2={_fmt_float(c['i_squared_percent'], 1)}\\%$."
         )
 
+    # The state-space model carries no eligibility verdict, so it appears in neither list.
     eligible_text = (
         ", ".join(
             _escape_latex(MODEL_LABELS.get(item, item.replace("_", " ")).lower())
             for item in eligible_models
+            if item != "state_space_latest"
         )
         or "none"
     )
@@ -1711,6 +1751,7 @@ def _primary_results_text(
         ", ".join(
             _escape_latex(MODEL_LABELS.get(item, item.replace("_", " ")).lower())
             for item in ineligible_models
+            if item != "state_space_latest"
         )
         or "none"
     )
@@ -1720,7 +1761,7 @@ The primary specification uses {_escape_latex(driver)}. Over {int(row["start_yea
 
 {cross_sentence}
 
-Supporting models eligible for substantive interpretation: {eligible_text}. Supporting models not eligible under the pre-specified gates: {ineligible_text}. Non-eligible estimates remain reported in Table~\\ref{{tab:reliability-gates}} rather than being omitted.
+Supporting models eligible for substantive interpretation: {eligible_text}. Supporting models not eligible under the pre-specified rules: {ineligible_text}. The state-space slope is governed by no such rule and is reported as inconclusive. Estimates that are not eligible remain reported in Table~\\ref{{tab:reliability-gates}} rather than being omitted.
 """
 
 
@@ -1819,8 +1860,8 @@ def _panel_prose(frame: pd.DataFrame, dossier_dir: Path) -> str:
     )
     if _interval_is_calibrated(dossier_dir) is not True:
         gates += (
-            "The gate column reads ``estimation only'' because the estimation gates passed while "
-            "the interval's calibration did not. "
+            "The gate column reads ``interval not validated'' because the estimation gates "
+            "passed while the coverage diagnostic did not confirm the nominal level. "
         )
 
     return (
@@ -1864,7 +1905,9 @@ def _validation_prose(dossier_dir: Path) -> str:
         f"{_fmt_float(calibration.get('driver_mean'), 4)} and within-year standard deviation "
         f"{_fmt_float(calibration.get('driver_sd'), 4)}, with a common annual component of "
         f"standard deviation {_fmt_float(calibration.get('driver_common_sd'), 4)}; the errors "
-        f"have standard deviation {_fmt_float(calibration.get('error_sd'), 4)}."
+        f"have standard deviation {_fmt_float(calibration.get('error_sd'), 4)}. Country effects "
+        f"have standard deviation {_fmt_float(calibration.get('country_effect_sd'), 4)} and year "
+        f"effects {_fmt_float(calibration.get('year_effect_sd'), 4)}."
         f" Driver coefficients are held at $({beta})$, and the correction "
         f"uses {int(design.get('bias_correction_draws_bias_study', 0))} simulation draws and at "
         f"most {int(design.get('bias_correction_max_iterations', 0))} iterations to a tolerance "

@@ -78,6 +78,10 @@ SHORT_COUNTRY = N_COUNTRIES - 1
 #: Common-component share of the superseded equicorrelated design, kept for the diagnostic
 #: that shows the year dummies absorb it.
 EQUICORRELATED_SHARE = 0.35
+#: Leading periods generated and discarded so the retained window starts in the stochastic
+#: steady state and its driver lags are drawn rather than assumed zero. At the persistence
+#: values studied here, gamma**BURN_IN is far below floating-point resolution.
+BURN_IN = 50
 COUNTRIES = tuple(f"C{index:02d}" for index in range(N_COUNTRIES))
 
 
@@ -229,14 +233,15 @@ def _draw_errors(
     calibration: Calibration,
     rng: np.random.Generator,
     design: str,
+    n_periods: int = N_YEARS,
 ) -> np.ndarray:
-    """Draw one country-by-year error matrix under the named dependence design."""
+    """Draw one country-by-period error matrix under the named dependence design."""
     if design == "factor":
         loadings = np.asarray(calibration.factor_loadings, dtype=float)
         idiosyncratic = np.asarray(calibration.idiosyncratic_sd, dtype=float)
-        factor = rng.normal(0.0, 1.0, size=N_YEARS)
+        factor = rng.normal(0.0, 1.0, size=n_periods)
         return loadings[:, None] * factor[None, :] + idiosyncratic[:, None] * rng.normal(
-            0.0, 1.0, size=(N_COUNTRIES, N_YEARS)
+            0.0, 1.0, size=(N_COUNTRIES, n_periods)
         )
     if design == "independent":
         # Same total variance per country as the factor design, without the common factor, so a
@@ -245,12 +250,12 @@ def _draw_errors(
         idiosyncratic = np.asarray(calibration.idiosyncratic_sd, dtype=float)
         total_sd = np.sqrt(loadings**2 + idiosyncratic**2)
         return np.asarray(
-            total_sd[:, None] * rng.normal(0.0, 1.0, size=(N_COUNTRIES, N_YEARS)), dtype=float
+            total_sd[:, None] * rng.normal(0.0, 1.0, size=(N_COUNTRIES, n_periods)), dtype=float
         )
     if design == "equicorrelated":
         share = EQUICORRELATED_SHARE
-        common = rng.normal(0.0, calibration.error_sd, size=N_YEARS)
-        idiosyncratic = rng.normal(0.0, calibration.error_sd, size=(N_COUNTRIES, N_YEARS))
+        common = rng.normal(0.0, calibration.error_sd, size=n_periods)
+        idiosyncratic = rng.normal(0.0, calibration.error_sd, size=(N_COUNTRIES, n_periods))
         equicorrelated = np.sqrt(share) * common[None, :] + np.sqrt(1.0 - share) * idiosyncratic
         return np.asarray(equicorrelated, dtype=float)
     raise ValueError(f"unknown dependence design: {design}")
@@ -289,8 +294,17 @@ def dependence_diagnostic(
             within.append(_dependence_statistics(_two_way_within(errors)))
         summary: dict[str, float] = {}
         for key in ("mean_correlation", "mean_absolute_correlation", "leading_eigenvalue_share"):
-            summary[f"raw_{key}"] = float(np.nanmean([entry[key] for entry in raw]))
-            summary[f"within_{key}"] = float(np.nanmean([entry[key] for entry in within]))
+            for label, entries in (("raw", raw), ("within", within)):
+                values = np.asarray([entry[key] for entry in entries], dtype=float)
+                finite = values[np.isfinite(values)]
+                summary[f"{label}_{key}"] = float(np.mean(finite)) if finite.size else float("nan")
+                # Standard error of the mean across replications, which is the uncertainty in the
+                # tabulated figure rather than the spread of a single panel's statistic.
+                summary[f"{label}_{key}_se"] = (
+                    float(np.std(finite, ddof=1) / np.sqrt(finite.size))
+                    if finite.size > 1
+                    else float("nan")
+                )
         rows[design] = summary
         print(
             f"  dependence  {design:15s}"
@@ -364,20 +378,26 @@ def simulate_growth_panel(
     dependence: str = "factor",
 ) -> GrowthPanel:
     """Draw one panel from the estimator's own model, at the estimation sample's dimensions."""
-    year_driver = rng.normal(0.0, calibration.driver_common_sd, size=N_YEARS)
+    periods = BURN_IN + N_YEARS
+    year_driver = rng.normal(0.0, calibration.driver_common_sd, size=periods)
     driver = (
         calibration.driver_mean
         + year_driver[None, :]
-        + rng.normal(0.0, calibration.driver_sd, size=(N_COUNTRIES, N_YEARS))
+        + rng.normal(0.0, calibration.driver_sd, size=(N_COUNTRIES, periods))
     )
 
     country_effect = rng.normal(0.0, calibration.effect_sd, size=N_COUNTRIES)
-    year_effect = rng.normal(0.0, calibration.year_effect_sd, size=N_YEARS)
-    errors = _draw_errors(calibration=calibration, rng=rng, design=dependence)
+    year_effect = rng.normal(0.0, calibration.year_effect_sd, size=periods)
+    errors = _draw_errors(calibration=calibration, rng=rng, design=dependence, n_periods=periods)
 
-    wage = np.zeros((N_COUNTRIES, N_YEARS), dtype=float)
-    wage[:, 0] = country_effect / max(1.0 - gamma, 1e-6) + errors[:, 0]
-    for step in range(1, N_YEARS):
+    # The burn-in starts at the stationary mean the parameters imply, driver term included, and
+    # then runs long enough that the choice of starting point cannot matter.
+    stationary = (country_effect + float(np.sum(beta)) * calibration.driver_mean) / max(
+        1.0 - gamma, 1e-6
+    )
+    wage = np.zeros((N_COUNTRIES, periods), dtype=float)
+    wage[:, 0] = stationary + errors[:, 0]
+    for step in range(1, periods):
         driven = np.zeros(N_COUNTRIES, dtype=float)
         for lag, coefficient in enumerate(beta):
             if step - lag >= 0:
@@ -390,8 +410,10 @@ def simulate_growth_panel(
             + errors[:, step]
         )
 
+    # Discard the burn-in. The retained window's driver lags are values the process generated.
+    wage = wage[:, BURN_IN:].copy()
+    driver = driver[:, BURN_IN:].copy()
     wage[SHORT_COUNTRY, -1] = np.nan
-    driver = driver.copy()
     driver[SHORT_COUNTRY, -1] = np.nan
     return GrowthPanel(
         countries=COUNTRIES,
