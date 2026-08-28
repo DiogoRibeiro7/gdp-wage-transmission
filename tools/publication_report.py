@@ -195,9 +195,14 @@ def _table_wrapper(
     columns: str,
     header: str,
     rows: Iterable[str],
-    note: str,
     size: str = "footnotesize",
 ) -> str:
+    """Render one table. Tables carry a caption and no note.
+
+    Everything a reader needs in order to interpret a table belongs in the running text, where it
+    is read. A note under a float is small print, and the material that used to sit there is now
+    part of the manuscript prose.
+    """
     body = "\n".join(rows)
     return f"""% AUTO-GENERATED. DO NOT EDIT.
 \\begin{{table}}[htbp]
@@ -212,9 +217,6 @@ def _table_wrapper(
 {body}
 \\hline
 \\end{{tabular}}
-\\begin{{minipage}}{{0.96\\linewidth}}
-\\footnotesize {note}
-\\end{{minipage}}
 \\end{{table}}
 """
 
@@ -290,13 +292,6 @@ def _core_table(core: pd.DataFrame) -> str:
         columns="p{3.1cm}rrrrrrr",
         header=("Driver & Period & Levels & Reg.\\ $N$ & $\\hat\\Theta$ & HAC SE & 95\\% CI & $p$"),
         rows=rows,
-        note=(
-            "The primary estimand is the cumulative distributed-lag coefficient. "
-            "GDP per person employed is the pre-specified primary driver; GDP per hour is "
-            "secondary. Levels is the input series length; Reg.\\ $N$ is the regression sample "
-            "after differencing and two driver lags. "
-            "These are reduced-form associations, not causal effects." + _multiplier_note(core)
-        ),
     )
 
 
@@ -375,13 +370,6 @@ def _reliability_table(reliability: pd.DataFrame, core: pd.DataFrame) -> str:
         columns="P{2.5cm}P{2.2cm}lP{2.0cm}P{4.4cm}",
         header="Driver & Model & Estimate & Claim status & Gate result",
         rows=rows,
-        note=(
-            "A supporting estimate may be discussed substantively only when its pre-specified "
-            "reliability gate is eligible. Non-eligible estimates are shown rather than dropped, "
-            "so a reader can see what was gated and why. State-space entries report the latest "
-            "slope with its standard error; asymmetry reports the positive and negative "
-            "cumulative responses; breaks report the selected years."
-        ),
     )
 
 
@@ -451,20 +439,6 @@ def _country_estimates_table(cross: pd.DataFrame, dossier_dir: Path) -> str | No
             + (r" & EG $p$ & Coint.\ 5\%" if has_cointegration else "")
         ),
         rows=rows,
-        note=(
-            "Each row is the same pre-specified specification estimated separately on one "
-            r"country. Levels is the input series length; Reg.\ $N$ is the regression sample, "
-            r"which loses one observation to differencing and two to the driver lags. EG $p$ is "
-            r"the Engle--Granger cointegration p-value on log levels, and the final column "
-            r"reports whether it supports cointegration at 5\%. "
-            "These estimates are the primary cross-country object; the summary in "
-            "Table~\\ref{tab:cross-country} is secondary and should be read together with the "
-            "heterogeneity statistic. Intervals are normal approximations from the HAC standard "
-            "error. Because the countries share a common observation period and common shocks, "
-            "independence between the country estimates cannot be assumed; their covariance was "
-            "not estimated, so the direction of any resulting error in a summary that treats them "
-            "as independent is unknown."
-        ),
     )
 
 
@@ -544,14 +518,6 @@ def _local_projection_table(core: pd.DataFrame) -> str | None:
         columns="p{2.9cm}rrrrrr",
         header=(r"Driver & Horizon & Estimate & HAC SE & HAC 95\% CI & Bootstrap 95\% CI & $n$"),
         rows=rows,
-        note=(
-            "Cumulative log-wage response at each horizon, for both drivers. Horizons marked "
-            "$\\dagger$ fall below the pre-specified minimum effective sample and are "
-            "exploratory. The bootstrap interval is a circular moving-block percentile interval "
-            "that resamples the joint growth pairs; it is wider than the HAC interval at longer "
-            "horizons because overlapping windows leave few effective observations there. "
-            "These are dynamic associations, not impulse responses to an identified shock."
-        ),
     )
 
 
@@ -696,14 +662,6 @@ def _cross_country_table(cross: pd.DataFrame, dossier_dir: Path) -> str:
         columns="lrrrrrr",
         header=r"Driver & Countries & Median & RE estimate & RE SE & $\tau^2$ & $I^2$",
         rows=rows,
-        note=(
-            "Country-specific estimates are the primary cross-country object. "
-            "The random-effects estimate is a secondary summary and should be read together "
-            "with heterogeneity. $\\tau^2$ is the DerSimonian--Laird moment estimator of the "
-            "between-country variance, truncated at zero, and $I^2$ the share of observed "
-            "dispersion in excess of sampling error. Both are computed under the independence "
-            "assumption the main text questions."
-        ),
     )
 
 
@@ -752,12 +710,6 @@ def _decomposition_table(decomposition: pd.DataFrame) -> str:
         columns="ll" + "r" * (len(components) + 2),
         header=header,
         rows=rows,
-        note=(
-            "The decomposition is an exact accounting identity: the components sum to the observed "
-            "change, and the residual reports the closure error. Components describe where wage "
-            "growth is accounted for; they are not causal effects. A negative employee "
-            "contribution means a growing wage bill divided among more people."
-        ),
     )
 
 
@@ -823,27 +775,12 @@ def _decomposition_appendix(decomposition: pd.DataFrame, *, minimum_countries: i
     header.append("Residual")
     columns += "r" * (len(components) + 1)
 
-    period_note = (
-        f"All countries span {int(frame['start_year'].iloc[0])}--"
-        f"{int(frame['end_year'].iloc[0])}, so the cumulative changes are directly comparable."
-        if common_period
-        else (
-            "Periods differ across countries, so the cumulative changes are not comparable and an "
-            "annualised column is reported alongside them."
-        )
-    )
     return _table_wrapper(
         caption="Accounting decomposition by country (log points).",
         label="tab:decomposition-appendix",
         columns=columns,
         header=" & ".join(header),
         rows=rows,
-        note=(
-            f"{period_note} Each row is an exact accounting identity: the four components sum to "
-            "the observed change and the residual reports closure error. The United Kingdom is "
-            "absent because Eurostat returns no national-accounts observations for it over this "
-            "range. Components describe where wage growth is accounted for, not what caused it."
-        ),
     )
 
 
@@ -909,13 +846,6 @@ def _source_table(config_path: Path) -> str | None:
         columns="lp{3.9cm}p{3.4cm}p{3.9cm}",
         header="Provider & Dataset or dataflow & Selection & Use",
         rows=rows,
-        note=(
-            "Every series is requested for the thirteen countries listed in "
-            "Table~\\ref{tab:country-estimates} over 1995--2025 at annual frequency; the country "
-            "list and window are the same for all sources and are therefore not repeated per row. "
-            "A response carrying more than one unit or price base is rejected rather than "
-            "aggregated, so no series mixes price bases."
-        ),
     )
 
 
@@ -971,17 +901,6 @@ def _break_table(core: pd.DataFrame) -> str | None:
             r"Min.\ segment & Gate"
         ),
         rows=rows,
-        note=(
-            "The two columns on the left come from different procedures. BIC segmentation selects "
-            "a number of regimes and always returns a partition, so it cannot indicate the absence "
-            "of a break. The sup-$F$ statistic is the largest Chow $F$ over candidate dates after "
-            "trimming 15\\% from each end, with a $p$-value from a Rademacher wild bootstrap that "
-            "repeats the whole date search on each replication, so it already accounts for the "
-            "search. The date interval is the percentile interval of the bootstrap arg-max. "
-            "Minimum segment is the shortest regime the segmentation produced, against a "
-            "pre-specified threshold of ten observations, which is why the gate is closed for both "
-            "drivers."
-        ),
     )
 
 
@@ -1044,8 +963,6 @@ def _validation_tables(dossier_dir: Path) -> list[tuple[str, str]]:
             f"{path} does not record prespecified=false. This is a post-hoc validation study "
             "and must not be presented as part of the confirmatory hierarchy."
         )
-    design = payload.get("design") or {}
-    calibration = payload.get("calibration") or {}
     tables: list[tuple[str, str]] = []
 
     bias_rows = payload.get("bias_study") or []
@@ -1078,31 +995,6 @@ def _validation_tables(dossier_dir: Path) -> list[tuple[str, str]]:
                         r"LSDVC bias & Removed & LSDVC $\Theta$ bias & Draws"
                     ),
                     rows=rows,
-                    note=(
-                        "Panels are drawn from the estimator's own model at the dimensions of the "
-                        f"estimation sample: {int(design.get('n_countries', 0))} countries, "
-                        f"{int(design.get('n_growth_years', 0))} annual growth observations, one "
-                        "country a year short, country and year effects. Driver growth has mean "
-                        f"{_fmt_float(calibration.get('driver_mean'), 4)}, within-year standard "
-                        f"deviation {_fmt_float(calibration.get('driver_sd'), 4)} and a common "
-                        "annual component of standard deviation "
-                        f"{_fmt_float(calibration.get('driver_common_sd'), 4)}; errors have "
-                        f"standard deviation {_fmt_float(calibration.get('error_sd'), 4)}, of "
-                        f"which {_fmt_pct_fraction(calibration.get('error_common_share'))} of the "
-                        "variance is common to every country in a year. Driver coefficients are "
-                        f"held at $({', '.join(_fmt_float(v) for v in design.get('beta', []))})$; "
-                        "the correction uses "
-                        f"{int(design.get('bias_correction_draws_bias_study', 0))} simulation "
-                        "draws and at most "
-                        f"{int(design.get('bias_correction_max_iterations', 0))} iterations to a "
-                        "tolerance of $10^{-7}$, and every draw converged. ``Removed'' is the "
-                        "proportional reduction in \\\\emph{absolute} bias, "
-                        "$1-|\\\\text{LSDVC bias}|/|\\\\text{LSDV bias}|$; at $\\\\gamma=0.50$ the "
-                        "residual bias has the opposite sign to the original, which is why both "
-                        "signed biases are printed beside it. See "
-                        "Appendix~\\\\ref{sec:validation} for what the design does and does not "
-                        "establish."
-                    ),
                     size="scriptsize",
                 ),
             )
@@ -1122,7 +1014,6 @@ def _validation_tables(dossier_dir: Path) -> list[tuple[str, str]]:
             )
             for row in coverage_rows
         ]
-        first = coverage_rows[0]
         tables.append(
             (
                 "table_validation_coverage.tex",
@@ -1138,21 +1029,6 @@ def _validation_tables(dossier_dir: Path) -> list[tuple[str, str]]:
                         r"Reverse coverage & Width & Displacement & Draws"
                     ),
                     rows=rows,
-                    note=(
-                        "Same data-generating process as "
-                        "Table~\\\\ref{tab:validation-bias}. Each draw runs the whole procedure: "
-                        f"{int(first.get('bootstrap_replications', 0))} moving-block replications "
-                        f"at block length {int(first.get('block_length', 0))}, resampling complete "
-                        "cross-sections, rebuilding lags after concatenation and re-estimating the "
-                        "bias-corrected model in every replication. The percentile interval is the "
-                        "prospectively specified one; the reverse-percentile (basic) interval is "
-                        "$[2\\\\hat{\\\\Theta}-q_{0.975},\\\\ 2\\\\hat{\\\\Theta}-q_{0.025}]$. "
-                        "Reflection preserves interval length exactly, so the two share the width "
-                        "column. ``Displacement'' is the mean gap between the median replication "
-                        "and the point estimate. Bracketed figures are exact "
-                        "(Clopper--Pearson) intervals for the coverage estimate itself; nominal "
-                        f"coverage is {_fmt_pct_fraction(first.get('nominal_coverage'))}."
-                    ),
                     size="scriptsize",
                 ),
             )
@@ -1239,7 +1115,6 @@ def _dynamic_panel_table(dossier_dir: Path) -> str | None:
             r"$\sum\hat{\beta}_j$ & $\hat{\Theta}$ & Nominal 95\% CI & Gate"
         ),
         rows=rows,
-        note=_dynamic_panel_note(frame, dossier_dir),
         size="scriptsize",
     )
 
@@ -1606,6 +1481,128 @@ def _markdown_summary(core: pd.DataFrame, cross: pd.DataFrame, reliability: pd.D
     return "\n".join(lines) + "\n"
 
 
+def _primary_prose(core: pd.DataFrame) -> str:
+    """The reading instructions and the ratio caveat for the primary estimates table."""
+    return (
+        "In Table~\\ref{tab:core-estimates}, \\emph{Levels} is the length of the input series "
+        "and \\emph{Reg.\\ $N$} the regression sample after differencing and two driver lags."
+        + _multiplier_note(core)
+    )
+
+
+def _panel_prose(frame: pd.DataFrame, dossier_dir: Path) -> str:
+    """Diagnostics for the dynamic panel that appear in no table column."""
+    primary = frame.loc[
+        (frame["role"] == "primary") & (frame["driver"] == "productivity_per_worker")
+    ]
+    if primary.empty:
+        primary = frame.loc[frame["role"] == "primary"]
+    record = primary.iloc[0]
+
+    sensitivity = frame.loc[
+        (frame["role"] == "sensitivity_block_length") & (frame["driver"] == str(record["driver"]))
+    ].sort_values("block_length")
+    block_parts = [
+        "a block length of {} gives $\\hat{{\\Theta}}={}$ with $[{}, {}]$".format(
+            int(row["block_length"]),
+            _fmt_float(row["corrected_multiplier"]),
+            _fmt_float(row["corrected_multiplier_ci_low"]),
+            _fmt_float(row["corrected_multiplier_ci_high"]),
+        )
+        for _, row in sensitivity.iterrows()
+    ]
+    blocks = (
+        "The prospectively specified block-length checks move the interval very little: "
+        + " and ".join(block_parts)
+        + ". "
+        if block_parts
+        else ""
+    )
+
+    failures = sorted(
+        {
+            part
+            for recorded in frame["gate_failures"].fillna("")
+            for part in str(recorded).split(";")
+            if part
+        }
+    )
+    gates = (
+        "No specification failed a prospectively specified estimation gate. "
+        if not failures
+        else "Estimation gates that failed, recorded rather than dropped: "
+        + _escape_latex(", ".join(failures).replace("_", " "))
+        + ". "
+    )
+    if _interval_is_calibrated(dossier_dir) is not True:
+        gates += (
+            "The gate column reads ``estimation only'' because the estimation gates passed while "
+            "the interval's calibration did not. "
+        )
+
+    return (
+        "Three diagnostics sit behind Table~\\ref{tab:dynamic-panel} without appearing in it. "
+        "The denominator of the multiplier stays well away from zero: across replications "
+        f"$1-\\hat{{\\gamma}}$ ranges over "
+        f"[{_fmt_float(record['one_minus_persistence_p2.5'])}, "
+        f"{_fmt_float(record['one_minus_persistence_p97.5'])}], never coming closer to zero than "
+        f"{_fmt_float(record['one_minus_persistence_min_abs'])}, and the ratio is finite in "
+        f"{_fmt_pct_fraction(record['finite_multiplier_share'])} of them. The median replication "
+        f"gives $\\hat{{\\Theta}}="
+        f"{_fmt_float(record['corrected_multiplier_bootstrap_median'])}$ against a point estimate "
+        f"of {_fmt_float(record['corrected_multiplier'])}, and reflecting that displacement gives "
+        f"a reverse-percentile interval of {_reverse_interval(record)}. "
+        + blocks
+        + "Driscoll--Kraay standard errors, reported as a secondary diagnostic only, are "
+        f"{_fmt_float(record['driscoll_kraay_persistence_std_error'])} for $\\hat{{\\gamma}}$, "
+        f"{_fmt_float(record['driscoll_kraay_driver_sum_std_error'])} for "
+        f"$\\sum\\hat{{\\beta}}_j$ and "
+        f"{_fmt_float(record['driscoll_kraay_multiplier_std_error'])} for $\\hat{{\\Theta}}$ "
+        f"by the delta method, at {int(record['driscoll_kraay_lags'])} lags. " + gates
+    )
+
+
+def _validation_prose(dossier_dir: Path) -> str:
+    """Calibration and solver settings for the Monte Carlo study."""
+    path = dossier_dir / "dynamic_panel_validation.json"
+    if not path.is_file():
+        return ""
+    payload = _load_json_object(path)
+    design = payload.get("design") or {}
+    calibration = payload.get("calibration") or {}
+    coverage = payload.get("coverage_study") or []
+    if not design:
+        return ""
+    beta = ", ".join(_fmt_float(value) for value in design.get("beta", []))
+    reps = int(coverage[0].get("bootstrap_replications", 0)) if coverage else 0
+    return (
+        "The simulated panels carry the dimensions of the estimation sample: "
+        f"{int(design.get('n_countries', 0))} countries, "
+        f"{int(design.get('n_growth_years', 0))} annual growth observations, one country a year "
+        "short, and country and year effects. Driver growth has mean "
+        f"{_fmt_float(calibration.get('driver_mean'), 4)} and within-year standard deviation "
+        f"{_fmt_float(calibration.get('driver_sd'), 4)}, with a common annual component of "
+        f"standard deviation {_fmt_float(calibration.get('driver_common_sd'), 4)}; the errors "
+        f"have standard deviation {_fmt_float(calibration.get('error_sd'), 4)}, of which "
+        f"{_fmt_pct_fraction(calibration.get('error_common_share'))} of the variance is common to "
+        f"every country in a year. Driver coefficients are held at $({beta})$, and the correction "
+        f"uses {int(design.get('bias_correction_draws_bias_study', 0))} simulation draws and at "
+        f"most {int(design.get('bias_correction_max_iterations', 0))} iterations to a tolerance "
+        "of $10^{-7}$; every draw converged.\n\n"
+        "``Removed'' in Table~\\ref{tab:validation-bias} is the proportional reduction in "
+        "\\emph{absolute} bias, $1-|\\text{LSDVC bias}|/|\\text{LSDV bias}|$. Taking absolute "
+        "values matters: at $\\gamma=0.50$ the residual bias has the opposite sign to the "
+        "original, so a ratio of the signed quantities would exceed one, which is why both signed "
+        "biases are printed beside it. In Table~\\ref{tab:validation-coverage} each draw runs the "
+        f"whole procedure at {reps} moving-block replications, the reverse-percentile interval is "
+        "$[2\\hat{\\Theta}-q_{0.975},\\ 2\\hat{\\Theta}-q_{0.025}]$, and reflection "
+        "preserves interval length exactly, so both interval types share the width column. "
+        "``Displacement'' is the mean gap between the median replication and the point estimate, "
+        "and the bracketed figures are exact Clopper--Pearson intervals for the coverage estimate "
+        "itself."
+    )
+
+
 def build_paper_packet(*, dossier_dir: Path, paper_dir: Path) -> PaperPacket:
     """Build LaTeX/Markdown fragments using only a verified publication dossier."""
     dossier_manifest = verify_dossier(dossier_dir)
@@ -1656,6 +1653,20 @@ def build_paper_packet(*, dossier_dir: Path, paper_dir: Path) -> PaperPacket:
 
     for name, body in _validation_tables(dossier_dir):
         optional_paths.append(_write(generated / name, body))
+
+    # Explanatory material goes into the manuscript as ordinary prose, never under a float.
+    optional_paths.append(_write(generated / "prose_primary.tex", _primary_prose(core)))
+    panel_path = dossier_dir / "dynamic_panel_summary.csv"
+    if panel_path.is_file():
+        optional_paths.append(
+            _write(
+                generated / "prose_panel.tex",
+                _panel_prose(pd.read_csv(panel_path), dossier_dir),
+            )
+        )
+    validation_prose = _validation_prose(dossier_dir)
+    if validation_prose:
+        optional_paths.append(_write(generated / "prose_validation.tex", validation_prose))
 
     optional_paths.append(_write(generated / "values.tex", _values_file(core, cross, dossier_dir)))
 
