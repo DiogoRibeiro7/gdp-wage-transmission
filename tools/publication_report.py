@@ -947,6 +947,56 @@ def _clopper_pearson(successes: int, trials: int, alpha: float = 0.05) -> tuple[
     return (lower, upper)
 
 
+def _wilson_interval(successes: int, trials: int, alpha: float = 0.05) -> tuple[float, float]:
+    """Wilson score interval for a proportion.
+
+    Used as the input to the difference interval rather than reported on its own. Its behaviour
+    near zero and one is what makes the difference interval usable there.
+    """
+    if trials <= 0:
+        return (float("nan"), float("nan"))
+    from scipy.stats import norm
+
+    z = float(norm.ppf(1.0 - alpha / 2.0))
+    share = successes / trials
+    denominator = 1.0 + z**2 / trials
+    centre = (share + z**2 / (2.0 * trials)) / denominator
+    half = z / denominator * math.sqrt(share * (1.0 - share) / trials + z**2 / (4.0 * trials**2))
+    return (max(0.0, centre - half), min(1.0, centre + half))
+
+
+def _newcombe_difference(
+    successes_a: int,
+    trials_a: int,
+    successes_b: int,
+    trials_b: int,
+    alpha: float = 0.05,
+) -> tuple[float, float]:
+    """Newcombe's hybrid score interval for the difference between two proportions.
+
+    The two coverage studies draw independent panels, so this is a two-sample interval and not a
+    paired one. Its endpoints come from the Wilson intervals of the two proportions, which is what
+    keeps it honest when one of them sits close to one.
+    """
+    if trials_a <= 0 or trials_b <= 0:
+        return (float("nan"), float("nan"))
+    share_a = successes_a / trials_a
+    share_b = successes_b / trials_b
+    low_a, high_a = _wilson_interval(successes_a, trials_a, alpha)
+    low_b, high_b = _wilson_interval(successes_b, trials_b, alpha)
+    difference = share_a - share_b
+    lower = difference - math.sqrt((share_a - low_a) ** 2 + (high_b - share_b) ** 2)
+    upper = difference + math.sqrt((high_a - share_a) ** 2 + (share_b - low_b) ** 2)
+    return (lower, upper)
+
+
+def _coverage_successes(row: Mapping[str, Any], prefix: str = "percentile") -> tuple[int, int]:
+    """The success and trial counts behind a recorded coverage proportion."""
+    trials = int(row.get("completed") or row.get("replications") or 0)
+    share = float(row[f"{prefix}_coverage"])
+    return (round(share * trials), trials)
+
+
 def _coverage_cell(row: Mapping[str, Any], prefix: str) -> str:
     """A coverage proportion with its exact Monte Carlo interval.
 
@@ -1021,30 +1071,42 @@ def _benchmark_prose(dossier_dir: Path) -> str:
         paired = dependent.get(gamma)
         if paired is None:
             continue
-        independent_ci = _coverage_interval(entry)
-        dependent_ci = _coverage_interval(paired)
-        independent_reaches = independent_ci[0] <= nominal <= independent_ci[1]
-        dependent_reaches = dependent_ci[0] <= nominal <= dependent_ci[1]
-        # Non-overlapping Monte Carlo intervals are the evidence that the designs differ at all.
-        distinguishable = dependent_ci[1] < independent_ci[0] or independent_ci[1] < dependent_ci[0]
+        # Falling short of nominal is a one-sample question; the marginal interval answers it.
+        dependent_short = _coverage_interval(paired)[1] < nominal
+        independent_short = _coverage_interval(entry)[1] < nominal
+        # Whether the two designs differ is a two-sample question, and needs the difference.
+        dependent_successes, dependent_trials = _coverage_successes(paired)
+        independent_successes, independent_trials = _coverage_successes(entry)
+        low, high = _newcombe_difference(
+            dependent_successes, dependent_trials, independent_successes, independent_trials
+        )
+        differ = low > 0.0 or high < 0.0
+
         label = f"At $\\gamma={_fmt_float(gamma, 2)}$"
-        if independent_reaches and not dependent_reaches:
+        if not dependent_short and not independent_short:
             findings.append(
-                f"{label} the benchmark reaches its nominal level while the dependent design does "
-                "not, so what the interval loses there it loses to cross-sectional dependence."
+                f"{label} neither design shows a shortfall distinguishable from the nominal level."
             )
-        elif independent_reaches and dependent_reaches:
-            findings.append(f"{label} neither design falls short.")
-        elif distinguishable:
+        elif dependent_short and not independent_short and differ:
             findings.append(
-                f"{label} both designs fall short and they are distinguishable, so the resampling "
-                "scheme and the dependence each contribute."
+                f"{label} the benchmark shows no distinguishable shortfall while the dependent "
+                "design does, and the two differ, so what the interval loses there it loses to "
+                "cross-sectional dependence."
+            )
+        elif dependent_short and independent_short and not differ:
+            findings.append(
+                f"{label} both designs fall short and their difference cannot be distinguished "
+                "from zero, so the shortfall there belongs to the resampling scheme and dependence "
+                "is not shown to add to it."
+            )
+        elif differ:
+            findings.append(
+                f"{label} the two designs differ, so dependence changes the coverage attained."
             )
         else:
             findings.append(
-                f"{label} both designs fall short by amounts this experiment cannot tell apart, so "
-                "the shortfall there belongs to the resampling scheme and dependence does not "
-                "measurably add to it."
+                f"{label} the difference between the designs cannot be distinguished from zero, so "
+                "dependence is not shown to change the coverage attained."
             )
     if not findings:
         return ""
@@ -1054,7 +1116,9 @@ def _benchmark_prose(dossier_dir: Path) -> str:
         "interval below its nominal level. Removing the common factor while holding each "
         "country's total error variance at $c_i^2+d_i^2$ changes the dependence and nothing else, "
         "so the difference between the columns is what dependence contributes and the remaining "
-        "shortfall is what the resampling scheme contributes. "
+        "shortfall is what the resampling scheme contributes. Whether a design falls short is read "
+        "from its own interval; whether two designs differ is read from the interval for their "
+        "difference, since overlapping marginal intervals settle nothing. "
         + " ".join(findings)
         + " No separate arm is run for the design carrying one disturbance common to every "
         "country, because Table~\\ref{tab:validation-dependence} shows it is indistinguishable "
@@ -1082,13 +1146,22 @@ def _benchmark_coverage_table(dossier_dir: Path) -> tuple[str, str] | None:
         paired = by_persistence.get(gamma)
         if paired is None:
             continue
+        dependent_successes, dependent_trials = _coverage_successes(paired)
+        independent_successes, independent_trials = _coverage_successes(entry)
         difference = float(paired["percentile_coverage"]) - float(entry["percentile_coverage"])
+        low, high = _newcombe_difference(
+            dependent_successes, dependent_trials, independent_successes, independent_trials
+        )
+        difference_cell = (
+            f"{_fmt_float(100.0 * difference, 1)} pp "
+            f"[{_fmt_float(100.0 * low, 1)}, {_fmt_float(100.0 * high, 1)}]"
+        )
         rows.append(
             "{} & {} & {} & {} \\\\".format(
                 _fmt_float(gamma, 2),
                 _coverage_cell(paired, "percentile"),
                 _coverage_cell(entry, "percentile"),
-                _fmt_pct_fraction(difference),
+                difference_cell,
             )
         )
     if not rows:
@@ -1098,7 +1171,9 @@ def _benchmark_coverage_table(dossier_dir: Path) -> tuple[str, str] | None:
         _table_wrapper(
             caption=(
                 "Coverage of the nominal 95\\% percentile interval under the dependent error "
-                "design and under independent errors of the same total variance."
+                "design and under independent errors of the same total variance. The difference "
+                "is in percentage points, with a Newcombe hybrid score interval for two "
+                "independent samples."
             ),
             label="tab:validation-benchmark",
             columns="rlll",
@@ -1381,7 +1456,7 @@ def _dynamic_panel_table(dossier_dir: Path) -> str | None:
             "The intervals are nominal and unvalidated at the replication count reported here."
         ),
         label="tab:dynamic-panel",
-        columns="p{1.6cm}p{1.2cm}lrrrrrlp{1.75cm}",
+        columns="p{1.75cm}p{1.35cm}lrrrrrlp{1.65cm}",
         header=(
             r"Driver & Fixed effects & Est. & Countries & Reg.\ $N$ & $\hat{\gamma}$ & "
             r"$\sum\hat{\beta}_j$ & $\hat{\Theta}$ & Nominal 95\% CI & Status"
@@ -1419,10 +1494,10 @@ def _interval_is_calibrated(dossier_dir: Path) -> bool | None:
 def _gate_label(claim_eligible: bool, calibrated: bool | None) -> str:
     """Report the estimation gate and the interval's calibration as the separate things they are."""
     if not claim_eligible:
-        return "estimation gate failed"
+        return "gate failed"
     if calibrated is not True:
-        return "estimation passed; interval not validated"
-    return "estimation passed; interval validated"
+        return "passed / not validated"
+    return "passed / validated"
 
 
 def _coverage_warning(dossier_dir: Path, persistence: float) -> str:
@@ -1496,7 +1571,8 @@ def _dynamic_panel_note(frame: pd.DataFrame, dossier_dir: Path) -> str:
     )
     if _interval_is_calibrated(dossier_dir) is not True:
         gate_text += (
-            " The status column names both halves of the verdict. The "
+            " In the status column the first entry is the estimation gate and the second "
+            "the interval. The "
             "diagnostic in Appendix~\\\\ref{sec:validation}, which resamples fewer times than "
             "the reported intervals do, did not confirm nominal coverage."
         )
@@ -1877,8 +1953,9 @@ def _panel_prose(frame: pd.DataFrame, dossier_dir: Path) -> str:
     )
     if _interval_is_calibrated(dossier_dir) is not True:
         gates += (
-            "The status column records both halves of the verdict: the estimation gates "
-            "passed, and the coverage diagnostic did not confirm the nominal level. "
+            "In the status column the first entry is the estimation gate and the second the "
+            "interval: here the estimation gates passed and the coverage diagnostic did "
+            "not confirm the nominal level. "
         )
 
     return (
