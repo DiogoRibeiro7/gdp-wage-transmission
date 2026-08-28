@@ -14,12 +14,23 @@ limitation. Panels are drawn as::
 
     dlog p_it = mu_p + phi_t + v_it
     dlog w_it = a_i + l_t + sum_j beta_j dlog p_{i,t-j} + gamma dlog w_{i,t-1} + e_it
-    e_it = sqrt(rho) u_t + sqrt(1 - rho) z_it
+    e_it = c_i f_t + d_i z_it,   f_t, z_it ~ N(0, 1)
 
 with the dimensions of the estimation sample -- thirteen countries, thirty-one annual levels, one
-country a year short -- and moments calibrated to the observed primary-driver panel. The common
-components ``phi_t`` and ``u_t`` give the errors contemporaneous cross-country dependence, which is
-what the block bootstrap is designed to preserve; ``rho`` sets how much.
+country a year short -- and moments calibrated to the observed primary-driver panel.
+
+The error design deserves a note, because an earlier version of this study got it wrong. Drawing
+``e_it = sqrt(rho) u_t + sqrt(1 - rho) z_it`` with ``u_t`` common to every country does *not* give
+the estimator cross-country dependence to contend with: the primary specification carries
+unrestricted year effects, so ``l_t + sqrt(rho) u_t`` is another year effect and the time dummies
+absorb ``u_t`` exactly. Such a design tests the estimator against no residual dependence at all.
+
+The factor form above avoids that. The loadings ``c_i`` are heterogeneous and come from the leading
+eigenvector of the cross-country covariance of the observed within residuals, and ``d_i`` from the
+part of each country's residual variance the factor leaves. Decomposing ``c_i = cbar + ctilde_i``,
+the ``cbar f_t`` component is absorbed by the year dummies and ``ctilde_i f_t`` is not, so what the
+estimator faces is dependence the year effects cannot remove -- calibrated from the data rather than
+assumed. ``dependence_diagnostic`` measures how much survives under each design.
 
 A correctly specified DGP measures whether the estimator recovers what it targets. It says nothing
 about behaviour under misspecification, and in particular nothing about the endogeneity the paper
@@ -64,6 +75,9 @@ from wage_transmission.version import __version__
 N_COUNTRIES = 13
 N_YEARS = 30
 SHORT_COUNTRY = N_COUNTRIES - 1
+#: Common-component share of the superseded equicorrelated design, kept for the diagnostic
+#: that shows the year dummies absorb it.
+EQUICORRELATED_SHARE = 0.35
 COUNTRIES = tuple(f"C{index:02d}" for index in range(N_COUNTRIES))
 
 
@@ -77,10 +91,15 @@ class Calibration:
     error_sd: float
     effect_sd: float
     year_effect_sd: float
-    error_common_share: float
+    factor_loadings: tuple[float, ...]
+    idiosyncratic_sd: tuple[float, ...]
+    observed_mean_correlation: float
+    observed_mean_absolute_correlation: float
+    observed_leading_eigenvalue_share: float
 
-    def to_dict(self) -> dict[str, float]:
-        """Return the calibration as plain floats for the artefact."""
+    def to_dict(self) -> dict[str, Any]:
+        """Return the calibration as plain values for the artefact."""
+        loadings = np.asarray(self.factor_loadings, dtype=float)
         return {
             "driver_mean": self.driver_mean,
             "driver_sd": self.driver_sd,
@@ -88,7 +107,13 @@ class Calibration:
             "error_sd": self.error_sd,
             "country_effect_sd": self.effect_sd,
             "year_effect_sd": self.year_effect_sd,
-            "error_common_share": self.error_common_share,
+            "factor_loadings": [float(value) for value in loadings],
+            "factor_loading_mean": float(np.mean(loadings)),
+            "factor_loading_sd": float(np.std(loadings, ddof=1)),
+            "idiosyncratic_sd": [float(value) for value in self.idiosyncratic_sd],
+            "observed_mean_correlation": self.observed_mean_correlation,
+            "observed_mean_absolute_correlation": self.observed_mean_absolute_correlation,
+            "observed_leading_eigenvalue_share": self.observed_leading_eigenvalue_share,
         }
 
 
@@ -119,6 +144,163 @@ def _binomial_se(successes: int, trials: int) -> float:
     return float(np.sqrt(share * (1.0 - share) / trials))
 
 
+def _pairwise_covariance(matrix: np.ndarray) -> np.ndarray:
+    """Cross-country covariance of an unbalanced country-by-period matrix.
+
+    Each pair uses the periods on which both countries are observed. The panel loses one endpoint
+    for one country, so this differs from a complete-case covariance only in that cell.
+    """
+    count = matrix.shape[0]
+    covariance = np.zeros((count, count), dtype=float)
+    for row in range(count):
+        for column in range(row, count):
+            both = np.isfinite(matrix[row]) & np.isfinite(matrix[column])
+            if int(both.sum()) < 3:
+                continue
+            left = matrix[row, both]
+            right = matrix[column, both]
+            value = float(np.mean((left - left.mean()) * (right - right.mean())))
+            value *= both.sum() / (both.sum() - 1)
+            covariance[row, column] = value
+            covariance[column, row] = value
+    return covariance
+
+
+def _dependence_statistics(matrix: np.ndarray) -> dict[str, float]:
+    """Summarise cross-country dependence in a country-by-period matrix.
+
+    The mean off-diagonal correlation is reported but is not on its own a usable summary: a factor
+    whose loadings have mixed signs induces strong pairwise dependence that averages to nearly zero.
+    The mean absolute correlation and the leading eigenvalue share of the correlation matrix do not
+    cancel that way, so all three travel together.
+    """
+    covariance = _pairwise_covariance(matrix)
+    scale = np.sqrt(np.clip(np.diag(covariance), 1e-24, None))
+    correlation = covariance / np.outer(scale, scale)
+    off = ~np.eye(correlation.shape[0], dtype=bool)
+    finite = correlation[off][np.isfinite(correlation[off])]
+    eigenvalues = np.linalg.eigvalsh(np.nan_to_num(correlation, nan=0.0))
+    return {
+        "mean_correlation": float(np.mean(finite)) if finite.size else float("nan"),
+        "mean_absolute_correlation": float(np.mean(np.abs(finite)))
+        if finite.size
+        else float("nan"),
+        "leading_eigenvalue_share": float(np.max(eigenvalues) / correlation.shape[0]),
+    }
+
+
+def _mean_offdiagonal_correlation(matrix: np.ndarray) -> float:
+    """Mean correlation between distinct countries, over the periods each pair shares."""
+    return _dependence_statistics(matrix)["mean_correlation"]
+
+
+def _two_way_within(matrix: np.ndarray, iterations: int = 200) -> np.ndarray:
+    """Sweep out country and year means by alternating projections.
+
+    For an unbalanced panel the two-way within transform is not one pass of row and column
+    demeaning, so the projections alternate to convergence. This mirrors what the estimator does to
+    the data and is the space in which surviving dependence should be measured.
+    """
+    observed = np.isfinite(matrix)
+    mask = observed.astype(float)
+    working = np.where(observed, matrix, 0.0)
+    row_count = mask.sum(axis=1, keepdims=True)
+    column_count = mask.sum(axis=0, keepdims=True)
+    for _ in range(iterations):
+        row_mean = np.divide(
+            working.sum(axis=1, keepdims=True),
+            row_count,
+            out=np.zeros_like(row_count),
+            where=row_count > 0,
+        )
+        working = working - mask * row_mean
+        column_mean = np.divide(
+            working.sum(axis=0, keepdims=True),
+            column_count,
+            out=np.zeros_like(column_count),
+            where=column_count > 0,
+        )
+        working = working - mask * column_mean
+    return np.where(observed, working, np.nan)
+
+
+def _draw_errors(
+    *,
+    calibration: Calibration,
+    rng: np.random.Generator,
+    design: str,
+) -> np.ndarray:
+    """Draw one country-by-year error matrix under the named dependence design."""
+    if design == "factor":
+        loadings = np.asarray(calibration.factor_loadings, dtype=float)
+        idiosyncratic = np.asarray(calibration.idiosyncratic_sd, dtype=float)
+        factor = rng.normal(0.0, 1.0, size=N_YEARS)
+        return loadings[:, None] * factor[None, :] + idiosyncratic[:, None] * rng.normal(
+            0.0, 1.0, size=(N_COUNTRIES, N_YEARS)
+        )
+    if design == "independent":
+        # Same total variance per country as the factor design, without the common factor, so a
+        # coverage comparison isolates dependence rather than scale.
+        loadings = np.asarray(calibration.factor_loadings, dtype=float)
+        idiosyncratic = np.asarray(calibration.idiosyncratic_sd, dtype=float)
+        total_sd = np.sqrt(loadings**2 + idiosyncratic**2)
+        return np.asarray(
+            total_sd[:, None] * rng.normal(0.0, 1.0, size=(N_COUNTRIES, N_YEARS)), dtype=float
+        )
+    if design == "equicorrelated":
+        share = EQUICORRELATED_SHARE
+        common = rng.normal(0.0, calibration.error_sd, size=N_YEARS)
+        idiosyncratic = rng.normal(0.0, calibration.error_sd, size=(N_COUNTRIES, N_YEARS))
+        equicorrelated = np.sqrt(share) * common[None, :] + np.sqrt(1.0 - share) * idiosyncratic
+        return np.asarray(equicorrelated, dtype=float)
+    raise ValueError(f"unknown dependence design: {design}")
+
+
+def dependence_diagnostic(
+    *,
+    calibration: Calibration,
+    replications: int,
+    seed: int,
+) -> dict[str, Any]:
+    """Measure how much cross-country dependence each design leaves for the estimator.
+
+    This is the check the earlier version of this appendix lacked. Correlation is reported before
+    and after the two-way within transform. A design whose within-transformed correlation is at the
+    level the transform induces mechanically, about -1/(N-1), has had its dependence absorbed by
+    the year dummies and tests nothing.
+    """
+    rows: dict[str, Any] = {
+        "replications": replications,
+        "mechanical_within_correlation": -1.0 / (N_COUNTRIES - 1),
+        "observed_within_mean_correlation": calibration.observed_mean_correlation,
+        "observed_within_mean_absolute_correlation": (
+            calibration.observed_mean_absolute_correlation
+        ),
+        "observed_within_leading_eigenvalue_share": (calibration.observed_leading_eigenvalue_share),
+    }
+    for design in ("factor", "equicorrelated", "independent"):
+        rng = np.random.default_rng(seed)
+        raw: list[dict[str, float]] = []
+        within: list[dict[str, float]] = []
+        for _ in range(replications):
+            errors = _draw_errors(calibration=calibration, rng=rng, design=design)
+            errors[SHORT_COUNTRY, -1] = np.nan
+            raw.append(_dependence_statistics(errors))
+            within.append(_dependence_statistics(_two_way_within(errors)))
+        summary: dict[str, float] = {}
+        for key in ("mean_correlation", "mean_absolute_correlation", "leading_eigenvalue_share"):
+            summary[f"raw_{key}"] = float(np.nanmean([entry[key] for entry in raw]))
+            summary[f"within_{key}"] = float(np.nanmean([entry[key] for entry in within]))
+        rows[design] = summary
+        print(
+            f"  dependence  {design:15s}"
+            f"  within |rho|={summary['within_mean_absolute_correlation']:.4f}"
+            f"  within lead={summary['within_leading_eigenvalue_share']:.4f}",
+            flush=True,
+        )
+    return rows
+
+
 def calibrate(panel_path: Path, driver_column: str) -> Calibration:
     """Read the observed panel and take the moments the simulation needs."""
     growth = build_growth_panel(pd.read_csv(panel_path), driver_column=driver_column)
@@ -142,14 +324,34 @@ def calibrate(panel_path: Path, driver_column: str) -> Calibration:
     period_means = np.array(
         [float(np.mean(effects[design.period_index == index])) for index in range(design.n_periods)]
     )
+    # The error design is calibrated, not assumed: take the cross-country covariance of the
+    # observed within residuals and read a one-factor representation off its leading eigenpair.
+    residual_matrix = np.full((N_COUNTRIES, design.n_periods), np.nan, dtype=float)
+    residual_matrix[design.country_index, design.period_index] = fit.residuals
+    covariance = _pairwise_covariance(residual_matrix)
+    eigenvalues, eigenvectors = np.linalg.eigh(covariance)
+    leading = int(np.argmax(eigenvalues))
+    loadings = eigenvectors[:, leading] * np.sqrt(max(float(eigenvalues[leading]), 0.0))
+    if float(np.mean(loadings)) < 0.0:
+        loadings = -loadings
+    # A one-factor fit can leave a country with no idiosyncratic variance; floor it so the design
+    # never produces a country whose errors are a deterministic multiple of the factor.
+    error_sd = float(np.std(fit.residuals, ddof=1))
+    idiosyncratic_var = np.maximum(np.diag(covariance) - loadings**2, (0.1 * error_sd) ** 2)
+    observed_dependence = _dependence_statistics(residual_matrix)
+
     return Calibration(
         driver_mean=float(np.mean(driver[observed])),
         driver_sd=float(np.std(residual_driver[observed], ddof=1)),
         driver_common_sd=float(np.std(year_means, ddof=1)),
-        error_sd=float(np.std(fit.residuals, ddof=1)),
+        error_sd=error_sd,
         effect_sd=float(np.std(country_means, ddof=1)),
         year_effect_sd=float(np.std(period_means, ddof=1)),
-        error_common_share=0.35,
+        factor_loadings=tuple(float(value) for value in loadings),
+        idiosyncratic_sd=tuple(float(value) for value in np.sqrt(idiosyncratic_var)),
+        observed_mean_correlation=observed_dependence["mean_correlation"],
+        observed_mean_absolute_correlation=observed_dependence["mean_absolute_correlation"],
+        observed_leading_eigenvalue_share=observed_dependence["leading_eigenvalue_share"],
     )
 
 
@@ -159,6 +361,7 @@ def simulate_growth_panel(
     beta: np.ndarray,
     calibration: Calibration,
     rng: np.random.Generator,
+    dependence: str = "factor",
 ) -> GrowthPanel:
     """Draw one panel from the estimator's own model, at the estimation sample's dimensions."""
     year_driver = rng.normal(0.0, calibration.driver_common_sd, size=N_YEARS)
@@ -170,10 +373,7 @@ def simulate_growth_panel(
 
     country_effect = rng.normal(0.0, calibration.effect_sd, size=N_COUNTRIES)
     year_effect = rng.normal(0.0, calibration.year_effect_sd, size=N_YEARS)
-    share = calibration.error_common_share
-    common = rng.normal(0.0, calibration.error_sd, size=N_YEARS)
-    idiosyncratic = rng.normal(0.0, calibration.error_sd, size=(N_COUNTRIES, N_YEARS))
-    errors = np.sqrt(share) * common[None, :] + np.sqrt(1.0 - share) * idiosyncratic
+    errors = _draw_errors(calibration=calibration, rng=rng, design=dependence)
 
     wage = np.zeros((N_COUNTRIES, N_YEARS), dtype=float)
     wage[:, 0] = country_effect / max(1.0 - gamma, 1e-6) + errors[:, 0]
@@ -307,6 +507,7 @@ def coverage_study(
     block_length: int,
     alpha: float,
     seed: int,
+    dependence: str = "factor",
 ) -> list[dict[str, Any]]:
     """Measure coverage of the percentile and reverse-percentile intervals for Theta."""
     rows: list[dict[str, Any]] = []
@@ -321,7 +522,13 @@ def coverage_study(
         started = time.monotonic()
         rng = np.random.default_rng(seed + round(gamma * 1000))
         for replication in range(replications):
-            growth = simulate_growth_panel(gamma=gamma, beta=beta, calibration=calibration, rng=rng)
+            growth = simulate_growth_panel(
+                gamma=gamma,
+                beta=beta,
+                calibration=calibration,
+                rng=rng,
+                dependence=dependence,
+            )
             try:
                 design = build_panel_design(
                     growth.wage_growth, growth.driver_growth, growth.countries, driver_lags=2
@@ -370,6 +577,7 @@ def coverage_study(
             {
                 "true_persistence": gamma,
                 "true_multiplier": true_multiplier,
+                "dependence": dependence,
                 "replications": replications,
                 "completed": completed,
                 "bootstrap_replications": bootstrap_replications,
@@ -419,11 +627,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--block-length", type=int, default=4)
     parser.add_argument("--alpha", type=float, default=0.05)
     parser.add_argument("--seed", type=int, default=20260825)
+    parser.add_argument("--dependence-replications", type=int, default=400)
     args = parser.parse_args(argv)
 
     calibration = calibrate(args.panel, args.driver)
     beta = np.array([0.4501, -0.0700, 0.0900], dtype=float)
     print(f"calibration: {calibration.to_dict()}", flush=True)
+
+    dependence = dependence_diagnostic(
+        calibration=calibration,
+        replications=args.dependence_replications,
+        seed=args.seed,
+    )
 
     bias_rows = bias_study(
         gammas=(0.1, 0.3, 0.5, 0.7),
@@ -455,6 +670,7 @@ def main(argv: list[str] | None = None) -> int:
             "panel_path": args.panel.as_posix(),
             "panel_sha256": sha256_bytes(args.panel.read_bytes()),
             "driver": args.driver,
+            "dependence": dependence,
             "design": {
                 "n_countries": N_COUNTRIES,
                 "n_growth_years": N_YEARS,
@@ -462,6 +678,7 @@ def main(argv: list[str] | None = None) -> int:
                 "driver_lags": 2,
                 "wage_lags": 1,
                 "fixed_effects": "country_and_year",
+                "error_design": "one_factor_heterogeneous_loadings",
                 "beta": [float(value) for value in beta],
                 "bias_correction_draws_bias_study": 200,
                 "bias_correction_draws_coverage_study": args.draws,

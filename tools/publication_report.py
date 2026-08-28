@@ -351,6 +351,10 @@ def _reliability_table(reliability: pd.DataFrame, core: pd.DataFrame) -> str:
         model = str(row["model"])
         eligible = "eligible" if _bool_value(row["claim_eligible"]) else "not eligible"
         eligible_cell = _escape_latex(eligible)
+        if model == "state_space_latest":
+            # This model carries no eligibility verdict. What was recorded against it is a
+            # significance threshold, which decides nothing about reliability.
+            eligible_cell = _escape_latex("inconclusive")
         if model == "local_projections" and _bool_value(row["claim_eligible"]):
             # The gate passes only for the shorter horizons; a bare "eligible" overstates it.
             eligible_cell = _escape_latex(eligible) + r", $h \le 3$"
@@ -365,7 +369,7 @@ def _reliability_table(reliability: pd.DataFrame, core: pd.DataFrame) -> str:
             )
         )
     return _table_wrapper(
-        caption="Supporting models, their estimates, and their pre-specified reliability gates.",
+        caption="Supporting models, their estimates, and their pre-specified eligibility rules.",
         label="tab:reliability-gates",
         columns="P{2.5cm}P{2.2cm}lP{2.0cm}P{4.4cm}",
         header="Driver & Model & Estimate & Claim status & Gate result",
@@ -554,7 +558,6 @@ def _forest_plot(cross: pd.DataFrame, dossier_dir: Path, output: Path) -> Path |
     positions = range(len(values))
 
     summary = float(row["random_effect_estimate"])
-    summary_se = float(row["random_effect_std_error"])
 
     figure, axes = plt.subplots(figsize=(6.4, 0.34 * len(values) + 1.6))
     for index, (estimate, error, label) in enumerate(zip(values, errors, labels, strict=True)):
@@ -576,22 +579,33 @@ def _forest_plot(cross: pd.DataFrame, dossier_dir: Path, output: Path) -> Path |
 
     axes.axvline(0.0, color="#888888", linewidth=0.9, linestyle=":")
     axes.axvline(1.0, color="#888888", linewidth=0.9, linestyle="--")
-    axes.axvspan(
-        summary - 1.96 * summary_se, summary + 1.96 * summary_se, color="#3060a0", alpha=0.13
-    )
-    axes.axvline(summary, color="#3060a0", linewidth=1.4)
+    # No band around the random-effects summary. A shaded interval reads as inference, and this
+    # one would rest on the independence assumption the paper questions. The median needs no such
+    # assumption, so it carries the reference line and the summary keeps a thin marker.
+    median = float(pd.Series(values).median())
+    axes.axvline(median, color="#3060a0", linewidth=1.4)
+    axes.axvline(summary, color="#3060a0", linewidth=0.8, linestyle="-.", alpha=0.75)
 
     axes.set_yticks(list(positions))
     axes.set_yticklabels(labels)
     axes.set_ylim(-0.8, len(values) - 0.2)
     axes.set_xlabel("Cumulative transmission of productivity growth into real wages")
-    axes.set_title("Country-specific estimates and random-effects summary", fontsize=10)
+    axes.set_title("Country-specific estimates, with the median country", fontsize=10)
     axes.text(
-        summary,
+        median,
         len(values) - 0.55,
-        f"  RE {summary:.3f}",
+        f"  median {median:.3f}",
         color="#3060a0",
         fontsize=8,
+        va="center",
+    )
+    axes.text(
+        summary,
+        len(values) - 1.35,
+        f"  RE {summary:.3f}",
+        color="#3060a0",
+        fontsize=7,
+        alpha=0.85,
         va="center",
     )
     for spine in ("top", "right"):
@@ -793,7 +807,6 @@ SOURCE_PURPOSES = {
     "employee_compensation": "Decomposition: compensation of employees",
     "employees": "Decomposition: employees, domestic concept",
     "consumer_price_index": "Decomposition: all-items annual average HICP",
-    "labour_productivity_and_ulc": "Robustness: independent productivity concepts",
 }
 
 
@@ -818,10 +831,13 @@ def _source_table(config_path: Path) -> str | None:
             continue
         if str(spec.get("status", "")).lower() == "unverified":
             continue
+        # The key template is what selects the series; ``measure`` only names it. Printing the
+        # template is what lets a reader reissue the request.
+        selection = str(spec.get("key_template") or spec.get("measure") or "--")
         rows.append(
             "OECD & {} & {} & {} \\\\".format(
                 _escape_latex(str(spec["flow_ref"])),
-                _escape_latex(str(spec.get("measure", "--"))),
+                _escape_latex(selection),
                 _escape_latex(SOURCE_PURPOSES.get(name, name.replace("_", " "))),
             )
         )
@@ -829,6 +845,10 @@ def _source_table(config_path: Path) -> str | None:
         if not isinstance(spec, dict) or "dataset" not in spec:
             continue
         filters = spec.get("filters") or {}
+        if not filters:
+            # No filters means the download layer never issues a request for it, so listing it
+            # would advertise a series the paper does not use.
+            continue
         detail = ", ".join(f"{key}={value}" for key, value in filters.items())
         rows.append(
             "Eurostat & {} & {} & {} \\\\".format(
@@ -843,7 +863,7 @@ def _source_table(config_path: Path) -> str | None:
     return _table_wrapper(
         caption="Official source identifiers.",
         label="tab:sources",
-        columns="lp{3.9cm}p{3.4cm}p{3.9cm}",
+        columns="lp{3.6cm}p{3.9cm}p{3.3cm}",
         header="Provider & Dataset or dataflow & Selection & Use",
         rows=rows,
     )
@@ -945,6 +965,202 @@ def _coverage_cell(row: Mapping[str, Any], prefix: str) -> str:
     low = _fmt_pct_fraction(interval[0])
     high = _fmt_pct_fraction(interval[1])
     return f"{point} [{low}, {high}]"
+
+
+def _benchmark_payload(dossier_dir: Path) -> dict[str, Any]:
+    """The design record, if the benchmark run has produced one."""
+    path = dossier_dir / "dynamic_panel_benchmark.json"
+    if not path.is_file():
+        return {}
+    return _load_json_object(path)
+
+
+def _benchmark_prose(dossier_dir: Path) -> str:
+    """Interpret the independent-error benchmark, reading the verdict off the artefact."""
+    benchmark = _benchmark_payload(dossier_dir)
+    independent = benchmark.get("independent_coverage_study") or []
+    path = dossier_dir / "dynamic_panel_validation.json"
+    if not independent or not path.is_file():
+        return ""
+    dependent = {
+        float(row["true_persistence"]): row
+        for row in _load_json_object(path).get("coverage_study") or []
+    }
+    paired = [
+        (float(entry["percentile_coverage"]), float(dependent[key]["percentile_coverage"]))
+        for entry in independent
+        if (key := float(entry["true_persistence"])) in dependent
+    ]
+    if not paired:
+        return ""
+
+    nominal = 0.95
+    worst_independent = min(share for share, _ in paired)
+    largest_gap = max(abs(share - other) for share, other in paired)
+    # The shortfall that survives with dependence removed belongs to the resampling scheme.
+    if worst_independent < nominal - 2.0 * largest_gap:
+        verdict = (
+            "The interval falls short of its nominal level even when the errors are independent, "
+            "and by more than dependence moves it. The dominant cause is therefore the resampling "
+            "scheme rather than cross-sectional dependence: gluing blocks together breaks the "
+            "dynamic relation at each join, and the persistence estimated within a replication is "
+            "attenuated accordingly. Dependence adds to the shortfall without accounting for most "
+            "of it."
+        )
+    elif worst_independent >= nominal - 0.02:
+        verdict = (
+            "With independent errors the interval is close to its nominal level, so the shortfall "
+            "reported above is attributable mainly to cross-sectional dependence rather than to "
+            "the resampling scheme."
+        )
+    else:
+        verdict = (
+            "Both mechanisms contribute materially. The interval undercovers with independent "
+            "errors, so part of the shortfall belongs to the resampling scheme, and dependence "
+            "widens the gap further."
+        )
+    return (
+        "Table~\\ref{tab:validation-benchmark} separates the two mechanisms that can push the "
+        "interval below its nominal level. Removing the common factor while holding each "
+        "country's total error variance at $c_i^2+d_i^2$ changes the dependence and nothing else, "
+        "so the difference between the columns is what dependence contributes and the remaining "
+        "shortfall is what the resampling scheme contributes. " + verdict
+    )
+
+
+def _benchmark_coverage_table(dossier_dir: Path) -> tuple[str, str] | None:
+    """Coverage under the dependent design beside coverage under independent errors."""
+    benchmark = _benchmark_payload(dossier_dir)
+    independent = benchmark.get("independent_coverage_study") or []
+    if not independent:
+        return None
+    path = dossier_dir / "dynamic_panel_validation.json"
+    if not path.is_file():
+        return None
+    dependent = _load_json_object(path).get("coverage_study") or []
+    if not dependent:
+        return None
+
+    by_persistence = {float(row["true_persistence"]): row for row in dependent}
+    rows: list[str] = []
+    for entry in independent:
+        gamma = float(entry["true_persistence"])
+        paired = by_persistence.get(gamma)
+        if paired is None:
+            continue
+        difference = float(paired["percentile_coverage"]) - float(entry["percentile_coverage"])
+        rows.append(
+            "{} & {} & {} & {} \\\\".format(
+                _fmt_float(gamma, 2),
+                _coverage_cell(paired, "percentile"),
+                _coverage_cell(entry, "percentile"),
+                _fmt_pct_fraction(difference),
+            )
+        )
+    if not rows:
+        return None
+    return (
+        "table_validation_benchmark.tex",
+        _table_wrapper(
+            caption=(
+                "Coverage of the nominal 95\\% percentile interval under the dependent error "
+                "design and under independent errors of the same total variance."
+            ),
+            label="tab:validation-benchmark",
+            columns="rlll",
+            header=("True $\\gamma$ & Dependent errors & Independent errors & Difference"),
+            rows=rows,
+        ),
+    )
+
+
+def _design_tables(dossier_dir: Path) -> list[tuple[str, str]]:
+    """Render the calibrated error design and the dependence each candidate design leaves."""
+    payload = _benchmark_payload(dossier_dir)
+    if not payload:
+        return []
+    tables: list[tuple[str, str]] = []
+
+    countries = payload.get("countries") or []
+    if countries:
+        rows = [
+            "{} & {} & {} & {} \\\\".format(
+                _escape_latex(str(entry.get("country", entry.get("index")))),
+                _fmt_float(entry["loading"], 4),
+                _fmt_float(entry["idiosyncratic_sd"], 4),
+                _fmt_pct_fraction(entry["factor_variance_share"]),
+            )
+            for entry in countries
+        ]
+        tables.append(
+            (
+                "table_validation_design.tex",
+                _table_wrapper(
+                    caption=(
+                        "Calibrated error design for the simulation: factor loading, "
+                        "idiosyncratic scale and the factor's share of each country's error "
+                        "variance."
+                    ),
+                    label="tab:validation-design",
+                    columns="lrrr",
+                    header=("Country & Loading $c_i$ & Idiosyncratic $d_i$ & Factor share"),
+                    rows=rows,
+                ),
+            )
+        )
+
+    dependence = payload.get("dependence") or {}
+    design_labels = [
+        ("factor", "Factor, heterogeneous loadings (used)"),
+        ("equicorrelated", "One disturbance common to all"),
+        ("independent", "Independent errors"),
+    ]
+    rows = []
+    for key, label in design_labels:
+        entry = dependence.get(key) or {}
+        if not entry:
+            continue
+        rows.append(
+            "{} & {} & {} & {} & {} \\\\".format(
+                _escape_latex(label),
+                _fmt_float(entry["raw_mean_absolute_correlation"]),
+                _fmt_float(entry["within_mean_absolute_correlation"]),
+                _fmt_float(entry["raw_leading_eigenvalue_share"]),
+                _fmt_float(entry["within_leading_eigenvalue_share"]),
+            )
+        )
+    observed_absolute = dependence.get("observed_within_mean_absolute_correlation")
+    observed_leading = dependence.get("observed_within_leading_eigenvalue_share")
+    if rows and observed_absolute is not None:
+        rows.append(
+            "{} & {} & {} & {} & {} \\\\".format(
+                _escape_latex("Observed within residuals"),
+                "---",
+                _fmt_float(observed_absolute),
+                "---",
+                _fmt_float(observed_leading),
+            )
+        )
+    if rows:
+        tables.append(
+            (
+                "table_validation_dependence.tex",
+                _table_wrapper(
+                    caption=(
+                        "Cross-country dependence left by each candidate error design, before "
+                        "and after country and year means are swept out."
+                    ),
+                    label="tab:validation-dependence",
+                    columns="P{4.3cm}rrrr",
+                    header=(
+                        "Error design & $|\\rho|$ raw & $|\\rho|$ within & "
+                        "Lead.\\ raw & Lead.\\ within"
+                    ),
+                    rows=rows,
+                ),
+            )
+        )
+    return tables
 
 
 def _validation_tables(dossier_dir: Path) -> list[tuple[str, str]]:
@@ -1369,6 +1585,73 @@ def _values_file(
                     _fmt_float(record["corrected_multiplier_bootstrap_median"]),
                 )
                 define(f"{prefix}{suffix}Obs", str(int(record["nobs"])))
+
+    # Spans of the decomposition contributions. The claim they support is comparative, so the
+    # spans are quoted rather than characterised.
+    decomposition_path = dossier_dir / "decomposition_summary.csv"
+    if decomposition_path.is_file():
+        decomposition = pd.read_csv(decomposition_path)
+        spans = {
+            "valSpanOutput": "real_gdp_log_contribution",
+            "valSpanEmployment": "employment_log_contribution",
+            "valSpanWedge": "relative_price_log_contribution",
+            "valSpanLabourShare": "labour_share_log_contribution",
+        }
+        for name, column in spans.items():
+            if column in decomposition:
+                values = decomposition[column].astype(float)
+                define(name, _fmt_float(values.max() - values.min()))
+
+    # Bias removed by the correction, across the simulated persistence grid.
+    validation_path = dossier_dir / "dynamic_panel_validation.json"
+    if validation_path.is_file():
+        validation = _load_json_object(validation_path)
+        removed = [
+            float(entry["persistence_bias_removed"])
+            for entry in validation.get("bias_study") or []
+            if entry.get("persistence_bias_removed") is not None
+        ]
+        if removed:
+            define("valBiasRemovedMin", _fmt_pct_fraction(min(removed)))
+            define("valBiasRemovedMax", _fmt_pct_fraction(max(removed)))
+        grid = [float(entry["true_persistence"]) for entry in validation.get("bias_study") or []]
+        if grid:
+            define("valBiasGammaLow", _fmt_float(min(grid), 1))
+            define("valBiasGammaHigh", _fmt_float(max(grid), 1))
+
+    # The post-hoc comparison of the two functionals. Nothing here revises a reported estimate;
+    # these say how far apart the impact sum and the long-run response are.
+    longrun_path = dossier_dir / "longrun_sensitivity.json"
+    if longrun_path.is_file():
+        payload = _load_json_object(longrun_path)
+        per_worker = (payload.get("drivers") or {}).get("productivity_per_worker") or {}
+        if per_worker:
+            define("valLongRunMedian", _fmt_float(per_worker.get("median_long_run")))
+            define("valImpactAboveOne", str(int(per_worker.get("n_impact_above_one", 0))))
+            define("valLongRunAboveOne", str(int(per_worker.get("n_long_run_above_one", 0))))
+            define("valFiellerUnbounded", str(int(per_worker.get("n_fieller_unbounded", 0))))
+            countries = per_worker.get("countries") or []
+            above = sorted(
+                str(entry["country"]) for entry in countries if float(entry["long_run"]) > 1.0
+            )
+            define("valLongRunAboveOneNames", " and ".join(above) if above else "none")
+            persistence = [float(entry["persistence"]) for entry in countries]
+            if persistence:
+                define("valPersistenceMin", _fmt_float(min(persistence)))
+                define("valPersistenceMax", _fmt_float(max(persistence)))
+            for entry in countries:
+                if str(entry.get("country")) != "PRT":
+                    continue
+                define("valPrtLongRun", _fmt_float(entry["long_run"]))
+                define("valPrtPersistence", _fmt_float(entry["persistence"]))
+                define(
+                    "valPrtLongRunFieller",
+                    interval(entry["long_run_fieller_ci_low"], entry["long_run_fieller_ci_high"]),
+                )
+                define(
+                    "valPrtLongRunDeltaCi",
+                    interval(entry["long_run_delta_ci_low"], entry["long_run_delta_ci_high"]),
+                )
     return "\n".join(lines) + "\n"
 
 
@@ -1570,11 +1853,9 @@ def _validation_prose(dossier_dir: Path) -> str:
     payload = _load_json_object(path)
     design = payload.get("design") or {}
     calibration = payload.get("calibration") or {}
-    coverage = payload.get("coverage_study") or []
     if not design:
         return ""
     beta = ", ".join(_fmt_float(value) for value in design.get("beta", []))
-    reps = int(coverage[0].get("bootstrap_replications", 0)) if coverage else 0
     return (
         "The simulated panels carry the dimensions of the estimation sample: "
         f"{int(design.get('n_countries', 0))} countries, "
@@ -1583,12 +1864,25 @@ def _validation_prose(dossier_dir: Path) -> str:
         f"{_fmt_float(calibration.get('driver_mean'), 4)} and within-year standard deviation "
         f"{_fmt_float(calibration.get('driver_sd'), 4)}, with a common annual component of "
         f"standard deviation {_fmt_float(calibration.get('driver_common_sd'), 4)}; the errors "
-        f"have standard deviation {_fmt_float(calibration.get('error_sd'), 4)}, of which "
-        f"{_fmt_pct_fraction(calibration.get('error_common_share'))} of the variance is common to "
-        f"every country in a year. Driver coefficients are held at $({beta})$, and the correction "
+        f"have standard deviation {_fmt_float(calibration.get('error_sd'), 4)}."
+        f" Driver coefficients are held at $({beta})$, and the correction "
         f"uses {int(design.get('bias_correction_draws_bias_study', 0))} simulation draws and at "
         f"most {int(design.get('bias_correction_max_iterations', 0))} iterations to a tolerance "
-        "of $10^{-7}$; every draw converged.\n\n"
+        "of $10^{-7}$; every draw converged."
+    )
+
+
+def _validation_table_prose(dossier_dir: Path) -> str:
+    """What the columns of the bias and coverage tables mean."""
+    path = dossier_dir / "dynamic_panel_validation.json"
+    if not path.is_file():
+        return ""
+    payload = _load_json_object(path)
+    coverage = payload.get("coverage_study") or []
+    if not payload.get("design"):
+        return ""
+    reps = int(coverage[0].get("bootstrap_replications", 0)) if coverage else 0
+    return (
         "``Removed'' in Table~\\ref{tab:validation-bias} is the proportional reduction in "
         "\\emph{absolute} bias, $1-|\\text{LSDVC bias}|/|\\text{LSDV bias}|$. Taking absolute "
         "values matters: at $\\gamma=0.50$ the residual bias has the opposite sign to the "
@@ -1653,6 +1947,14 @@ def build_paper_packet(*, dossier_dir: Path, paper_dir: Path) -> PaperPacket:
 
     for name, body in _validation_tables(dossier_dir):
         optional_paths.append(_write(generated / name, body))
+    for name, body in _design_tables(dossier_dir):
+        optional_paths.append(_write(generated / name, body))
+    benchmark_table = _benchmark_coverage_table(dossier_dir)
+    if benchmark_table is not None:
+        optional_paths.append(_write(generated / benchmark_table[0], benchmark_table[1]))
+    benchmark_prose = _benchmark_prose(dossier_dir)
+    if benchmark_prose:
+        optional_paths.append(_write(generated / "prose_benchmark.tex", benchmark_prose))
 
     # Explanatory material goes into the manuscript as ordinary prose, never under a float.
     optional_paths.append(_write(generated / "prose_primary.tex", _primary_prose(core)))
@@ -1667,6 +1969,11 @@ def build_paper_packet(*, dossier_dir: Path, paper_dir: Path) -> PaperPacket:
     validation_prose = _validation_prose(dossier_dir)
     if validation_prose:
         optional_paths.append(_write(generated / "prose_validation.tex", validation_prose))
+    validation_table_prose = _validation_table_prose(dossier_dir)
+    if validation_table_prose:
+        optional_paths.append(
+            _write(generated / "prose_validation_tables.tex", validation_table_prose)
+        )
 
     optional_paths.append(_write(generated / "values.tex", _values_file(core, cross, dossier_dir)))
 
