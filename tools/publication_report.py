@@ -1262,12 +1262,12 @@ def _design_tables(dossier_dir: Path) -> list[tuple[str, str]]:
     if replications and has_errors:
         suffix = (
             f" Simulated rows are means over {replications} drawn panels, with the standard error "
-            "of the mean in parentheses; the observed row is computed once, from the estimated "
+            "of the mean in parentheses. The observed row is computed once, from the estimated "
             "residuals."
         )
     elif replications:
         suffix = (
-            f" Simulated rows are means over {replications} drawn panels; the observed row is "
+            f" Simulated rows are means over {replications} drawn panels. The observed row is "
             "computed once, from the estimated residuals."
         )
     else:
@@ -1518,9 +1518,9 @@ def _coverage_warning(dossier_dir: Path, persistence: float) -> str:
         f"percentile interval {_fmt_pct_fraction(nearest['percentile_coverage'])} coverage and "
         f"the reverse-percentile interval "
         f"{_fmt_pct_fraction(nearest['reverse_percentile_coverage'])}, against a nominal "
-        f"{_fmt_pct_fraction(nearest['nominal_coverage'])}; both deteriorate as persistence "
+        f"{_fmt_pct_fraction(nearest['nominal_coverage'])}. Both deteriorate as persistence "
         "rises. The simulation shows that these intervals do not attain nominal coverage under "
-        "the evaluated designs; it does not identify a valid scalar widening or an alternative "
+        "the evaluated designs, and it does not identify a valid scalar widening or an alternative "
         "calibrated interval. Appendix~\\ref{sec:validation} reports the full study. "
     )
 
@@ -1582,7 +1582,7 @@ def _dynamic_panel_note(frame: pd.DataFrame, dossier_dir: Path) -> str:
         f"{int(record['n_effective_years'])} effective years. The specification, the bias "
         "correction and the bootstrap are described in "
         "Section~\\\\ref{sec:dynamic-panel}. LSDVC is the bias-corrected estimator and is the "
-        "substantive one; LSDV is shown beside it to give the size of the correction. Intervals "
+        "substantive one. LSDV is shown beside it to give the size of the correction. Intervals "
         "are nominal percentile intervals for the multiplier, from "
         f"{int(record['replications_requested'])} moving-block replications at block length "
         f"{int(record['block_length'])}, of which {int(record['replications_completed'])} "
@@ -1827,7 +1827,7 @@ def _primary_results_text(
         c = cross_primary.iloc[0]
         cross_sentence = (
             f"Across {int(c['n_countries'])} countries, the median country-specific coefficient was "
-            f"{_fmt_float(c['median_cumulative_transmission'])}; the secondary random-effects summary was "
+            f"{_fmt_float(c['median_cumulative_transmission'])}. The secondary random-effects summary was "
             f"{_fmt_float(c['random_effect_estimate'])} with $I^2={_fmt_float(c['i_squared_percent'], 1)}\\%$."
         )
 
@@ -1998,14 +1998,14 @@ def _validation_prose(dossier_dir: Path) -> str:
         "short, and country and year effects. Driver growth has mean "
         f"{_fmt_float(calibration.get('driver_mean'), 4)} and within-year standard deviation "
         f"{_fmt_float(calibration.get('driver_sd'), 4)}, with a common annual component of "
-        f"standard deviation {_fmt_float(calibration.get('driver_common_sd'), 4)}; the errors "
+        f"standard deviation {_fmt_float(calibration.get('driver_common_sd'), 4)}. The errors "
         f"have standard deviation {_fmt_float(calibration.get('error_sd'), 4)}. Country effects "
         f"have standard deviation {_fmt_float(calibration.get('country_effect_sd'), 4)} and year "
         f"effects {_fmt_float(calibration.get('year_effect_sd'), 4)}."
         f" Driver coefficients are held at $({beta})$, and the correction "
         f"uses {int(design.get('bias_correction_draws_bias_study', 0))} simulation draws and at "
         f"most {int(design.get('bias_correction_max_iterations', 0))} iterations to a tolerance "
-        "of $10^{-7}$; every draw converged."
+        "of $10^{-7}$, and every draw converged."
     )
 
 
