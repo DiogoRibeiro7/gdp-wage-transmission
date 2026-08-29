@@ -172,6 +172,34 @@ def test_generated_fragment_tampering_is_rejected(tmp_path: Path) -> None:
         audit_paper_sources(paper_dir=paper, generated_manifest=packet.manifest)
 
 
+def test_dossier_input_tampering_is_rejected_after_the_packet_is_built(tmp_path: Path) -> None:
+    """A dossier file that moves after the build must fail the audit.
+
+    Tampering with an input leaves every generated fragment matching its recorded digest, so the
+    fragment check cannot see it. Only the recorded input digests can.
+    """
+    dossier = _write_dossier(tmp_path / "dossier")
+    paper = tmp_path / "paper"
+    _write_main(paper)
+    packet = build_paper_packet(dossier_dir=dossier, paper_dir=paper)
+    audit_paper_sources(paper_dir=paper, generated_manifest=packet.manifest)
+
+    (dossier / "results_summary.md").write_text("# edited after the build\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="Dossier input has changed"):
+        audit_paper_sources(paper_dir=paper, generated_manifest=packet.manifest)
+
+
+def test_missing_dossier_input_is_rejected(tmp_path: Path) -> None:
+    """A recorded input that disappears is a failure, not a silently skipped check."""
+    dossier = _write_dossier(tmp_path / "dossier")
+    paper = tmp_path / "paper"
+    _write_main(paper)
+    packet = build_paper_packet(dossier_dir=dossier, paper_dir=paper)
+    (dossier / "results_summary.md").unlink()
+    with pytest.raises(FileNotFoundError, match="recorded in the packet is missing"):
+        audit_paper_sources(paper_dir=paper, generated_manifest=packet.manifest)
+
+
 def test_manual_table_in_paper_source_is_rejected(tmp_path: Path) -> None:
     dossier = _write_dossier(tmp_path / "dossier")
     paper = tmp_path / "paper"

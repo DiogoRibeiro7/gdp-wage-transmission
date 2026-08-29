@@ -2154,6 +2154,8 @@ def build_paper_packet(*, dossier_dir: Path, paper_dir: Path) -> PaperPacket:
         "causal_claims_authorized": False,
         "dossier_manifest_file": "publication_manifest.json",
         "dossier_manifest_sha256": sha256_file(dossier_dir / "publication_manifest.json"),
+        # Recorded so the audit can re-check the inputs, not only the fragments built from them.
+        "dossier_dir": dossier_dir.as_posix(),
         "specification_lock_label": dossier_manifest.get("specification_lock_label"),
         "primary_driver": dossier_manifest.get("primary_driver"),
         "primary_estimand": dossier_manifest.get("primary_estimand"),
@@ -2174,6 +2176,43 @@ def build_paper_packet(*, dossier_dir: Path, paper_dir: Path) -> PaperPacket:
         markdown_summary=markdown_summary,
         manifest=packet_manifest,
     )
+
+
+def _audit_packet_inputs(manifest: Mapping[str, Any]) -> None:
+    """Re-check the dossier files the packet was built from.
+
+    Verifying the generated fragments proves they have not been edited since the build. It says
+    nothing about whether the dossier still holds the numbers they were built from, so the recorded
+    input digests are checked too. Manifests written before the dossier location was recorded are
+    skipped rather than failed, since their inputs cannot be located.
+    """
+    recorded_dir = manifest.get("dossier_dir")
+    if not isinstance(recorded_dir, str) or not recorded_dir:
+        return
+    dossier_dir = Path(recorded_dir)
+    if not dossier_dir.is_dir():
+        raise FileNotFoundError(f"Recorded dossier directory is missing: {dossier_dir}")
+
+    expected_manifest = manifest.get("dossier_manifest_sha256")
+    manifest_name = manifest.get("dossier_manifest_file") or "publication_manifest.json"
+    if isinstance(expected_manifest, str):
+        actual = sha256_file(dossier_dir / str(manifest_name))
+        if actual != expected_manifest:
+            raise ValueError(
+                f"Dossier manifest has changed since the packet was built: {manifest_name}"
+            )
+
+    inputs = manifest.get("inputs")
+    if not isinstance(inputs, dict):
+        raise ValueError("Paper-packet manifest must contain an inputs object.")
+    for name, expected in sorted(inputs.items()):
+        if not isinstance(name, str) or not isinstance(expected, str):
+            raise ValueError("Paper-packet input entries must be name -> SHA-256 strings.")
+        path = dossier_dir / name
+        if not path.is_file():
+            raise FileNotFoundError(f"Dossier input recorded in the packet is missing: {path}")
+        if sha256_file(path) != expected:
+            raise ValueError(f"Dossier input has changed since the packet was built: {name}")
 
 
 def audit_paper_sources(*, paper_dir: Path, generated_manifest: Path) -> None:
@@ -2197,6 +2236,8 @@ def audit_paper_sources(*, paper_dir: Path, generated_manifest: Path) -> None:
             raise FileNotFoundError(path)
         if sha256_file(path) != expected:
             raise ValueError(f"Generated paper fragment hash mismatch: {path.name}")
+
+    _audit_packet_inputs(manifest)
 
     generated_dir = paper_dir / "generated"
     manual_sources = [
