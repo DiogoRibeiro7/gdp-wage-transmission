@@ -1,5 +1,96 @@
 # Changelog
 
+## v0.8.4 — the estimand the paper described, and the one it estimated — 2026-08-29
+
+A publication release with a correction the previous ones did not need. No estimate in the primary
+results changed: the only file under `src/wage_transmission` to differ from v0.8.0 is the version
+string, and the frozen vintage bundle still verifies at 168 of 168 digests. What changed is the
+manuscript's account of what it estimates, and the simulation study that checks the panel's
+interval, whose reported numbers do change.
+
+### The manuscript described an estimator that was never run
+
+The primary country estimand was written as the ratio of the summed driver coefficients to one
+minus persistence, with its variance said to follow by the delta method. The locked estimator
+returns the sum itself, and takes its variance as `1'V1` from the HAC covariance, which is exact for
+a linear combination. Every reported country figure is that sum: Portugal's 0.432 is the sum, where
+the ratio would be 0.657. The equation and the variance sentence are corrected, and the sum is named
+the impact sum throughout.
+
+That correction reaches further than the equation. The dynamic panel reports the long-run
+multiplier on a projection whose driver coefficients are identified from within-year deviations, so
+it is a different functional of a differently conditioned projection, not a pooled version of the
+country estimates. Six passages had called the two "the same multiplier". A new appendix sizes the
+gap: the median impact sum is 0.382 against a median long-run response of 0.418, and the count of
+countries above one-for-one transmission is none under the impact sum and two under the long-run
+response. The claim that transmission is mostly below one is a claim about the impact sum, and now
+says so. The long-run figure is a ratio, so it also carries a Fieller interval, which is the
+construction the delta method approximates.
+
+### The simulation was not testing what it claimed to
+
+**A common disturbance is absorbed by the year effects.** The Monte Carlo drew one annual shock
+shared by every country and described the result as a test under cross-sectional dependence. The
+primary specification carries unrestricted year effects, so such a shock is another year effect and
+the time dummies remove it exactly. Measured by the leading eigenvalue share of the cross-country
+correlation matrix, that design falls to 0.184 after the two-way within transform against 0.186 for
+independent errors, with standard errors of 0.0008: it was indistinguishable from no dependence at
+all. The replacement is a one-factor structure with heterogeneous loadings read off the residual
+covariance, which holds at 0.251 against 0.195 in the observed residuals.
+
+**The panels did not start where they should.** The recursion began at `alpha_i / (1 - gamma)`,
+which is not the stationary mean of a process whose driver has a non-zero mean; the omitted term is
+0.0043 at `gamma = 0.15`, a third of the error standard deviation. The driver sum also skipped lags
+reaching before the first period, so the first two observations were generated as though the
+pre-sample driver were zero. A fifty-period burn-in fixes both, and simulated means now match the
+implied stationary mean to within 1e-6 at the estimated persistence.
+
+**What the corrected study finds.** Coverage of the percentile interval is 94.3% with a Monte Carlo
+interval of [91.5%, 96.3%] at a persistence close to the 0.146 estimated here, and 76.0% [71.5%,
+80.1%] at 0.45. The bias correction removes between 87.3% and 98.5% of the dynamic fixed-effects
+bias across the grid, and every draw converged. An independent-error benchmark at the same total
+variance separates the two mechanisms that can cost coverage: the differences are -1.5 percentage
+points [-4.7, 1.6] and 3.5 [-2.6, 9.5], neither distinguishable from zero, so dependence is not
+shown to change the coverage attained.
+
+### The interval is unvalidated rather than shown to fail
+
+The diagnostic resamples 999 times where the reported intervals use 4,999, and the manuscript said
+so in one section while five others asserted that the reported procedure had failed. Since the
+corrected simulation cannot separate coverage from nominal at the estimated persistence, and since
+failing to detect a shortfall at a fifth of the replication count is not evidence there is none,
+every passage now says nominal coverage was not confirmed. The status column reads "passed / not
+validated" and names both halves of the verdict.
+
+### The state-space model leaves the eligibility system
+
+Its condition was that the latest filtered slope satisfy `|z| > 1.96`, which is a significance test
+and decides nothing about reliability: a slope near zero may be well determined and simply small.
+Fixing a threshold in advance disciplines the analyst without making the threshold measure what its
+name claims. The estimate and its standard error are reported as they stand and described as
+inconclusive, with no eligibility verdict attached, and the remaining rules are set out by kind --
+three sample-size rules with their rationale, and one specification condition.
+
+### Reporting and integrity
+
+Tables carry a caption and no note; what a note would have said is in the running text, including
+the three reading keys that existed only in notes. The source table prints the SDMX key that
+selects each series rather than a dash, and no longer advertises a dataset that no reported result
+uses and that this vintage never retrieved. The state-space model's fixed variance and
+initialisation are stated, the bias correction is written as an algorithm, and the driver process
+has its generating equation, its independence assumptions, and the admission that the design
+carries no serial dependence except through the estimated equation's own lags.
+
+The packet audit now re-checks the dossier inputs it records, not only the fragments built from
+them. That is the one drift the fragment check cannot see: a dossier file that changes after the
+build leaves every fragment matching its own digest.
+
+### Prose
+
+Duplicated formulations are compressed to a cross-reference and the argument that follows them, and
+the semicolon is no longer the default connective -- 1.2 per thousand words against 4.5, with the
+ones separating list items that contain their own commas left alone.
+
 ## v0.8.3 — what the paper claims, and what it merely narrates — 2026-08-26
 
 A publication release. No source file, no configuration file and no estimate changed; the

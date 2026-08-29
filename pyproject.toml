@@ -1,6 +1,6 @@
 [project]
 name = "gdp-wage-transmission"
-version = "0.8.3"
+version = "0.8.4"
 description = "Empirical models for the transmission from GDP and labour productivity to real wages."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
