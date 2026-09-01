@@ -181,7 +181,7 @@ jobs:
           } | sort -z | xargs -0 sha256sum > "publication-freeze-${VINTAGE}.sha256"
 
       - name: Upload immutable source freeze and empirical outputs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: publication-freeze-${{ steps.release.outputs.vintage }}
           if-no-files-found: error
