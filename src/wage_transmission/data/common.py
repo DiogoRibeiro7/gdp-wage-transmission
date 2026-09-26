@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from dataexcept import DataLoadingError, FileReadError, FileWriteError, wrapping
 
 PROVENANCE_SCHEMA_VERSION = 3
 
@@ -31,20 +32,29 @@ def write_snapshot(
     response digest, retrieval timestamp, byte count and a small provenance schema version. The
     surrounding downloader is responsible for recording the source-specific query definition.
     """
-    destination.parent.mkdir(parents=True, exist_ok=True)
+    with wrapping(OSError, FileWriteError, path=str(destination)):
+        destination.parent.mkdir(parents=True, exist_ok=True)
     meta_path = destination.with_suffix(destination.suffix + ".metadata.json")
     digest = sha256_bytes(content)
 
-    if destination.exists():
-        existing = destination.read_bytes()
+    with wrapping(OSError, FileReadError, path=str(destination)):
+        raw_exists = destination.exists()
+    if raw_exists:
+        with wrapping(OSError, FileReadError, path=str(destination)):
+            existing = destination.read_bytes()
         existing_digest = sha256_bytes(existing)
         if existing_digest != digest:
             raise FileExistsError(
                 "Refusing to overwrite an existing raw snapshot with different bytes: "
                 f"{destination}. Use a versioned raw directory for a new source vintage."
             )
-        if meta_path.exists():
-            existing_metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+        with wrapping(OSError, FileReadError, path=str(meta_path)):
+            metadata_exists = meta_path.exists()
+        if metadata_exists:
+            with wrapping((OSError, UnicodeError), FileReadError, path=str(meta_path)):
+                serialized = meta_path.read_text(encoding="utf-8")
+            with wrapping(json.JSONDecodeError, DataLoadingError, source=str(meta_path)):
+                existing_metadata = json.loads(serialized)
             recorded_digest = existing_metadata.get("sha256")
             if recorded_digest is not None and recorded_digest != digest:
                 raise ValueError(
@@ -52,7 +62,8 @@ def write_snapshot(
                 )
             return destination, meta_path
     else:
-        destination.write_bytes(content)
+        with wrapping(OSError, FileWriteError, path=str(destination)):
+            destination.write_bytes(content)
 
     method = retrieval_method.strip()
     if not method:
@@ -65,9 +76,10 @@ def write_snapshot(
         "sha256": digest,
         "bytes": len(content),
     }
-    meta_path.write_text(
-        json.dumps(enriched, indent=2, sort_keys=True), encoding="utf-8", newline="\n"
-    )
+    with wrapping((OSError, UnicodeError), FileWriteError, path=str(meta_path)):
+        meta_path.write_text(
+            json.dumps(enriched, indent=2, sort_keys=True), encoding="utf-8", newline="\n"
+        )
     return destination, meta_path
 
 

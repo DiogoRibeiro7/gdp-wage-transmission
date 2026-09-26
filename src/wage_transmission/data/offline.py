@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Literal
 
 import pandas as pd
+from dataexcept import DataLoadingError, FileReadError, FileWriteError, wrapping
 
 from wage_transmission.data.eurostat import (
     ISO3_TO_EUROSTAT,
@@ -34,7 +35,11 @@ OfflineProductivityMeasure = Literal["GDPHRS", "GDPEMP"]
 def _read_verified_csv(path: Path, *, require_metadata: bool) -> pd.DataFrame:
     if require_metadata:
         verify_snapshot(path)
-    return pd.read_csv(path, low_memory=False)
+    with (
+        wrapping((OSError, UnicodeError), FileReadError, path=str(path)),
+        wrapping(pd.errors.ParserError, DataLoadingError, source=str(path)),
+    ):
+        return pd.read_csv(path, low_memory=False)
 
 
 def build_oecd_panel_from_snapshots(
@@ -81,7 +86,10 @@ def build_oecd_panel_from_snapshots(
 def _read_verified_json(path: Path, *, require_metadata: bool) -> dict[str, object]:
     if require_metadata:
         verify_snapshot(path)
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    with wrapping((OSError, UnicodeError), FileReadError, path=str(path)):
+        serialized = path.read_text(encoding="utf-8")
+    with wrapping(json.JSONDecodeError, DataLoadingError, source=str(path)):
+        payload = json.loads(serialized)
     if not isinstance(payload, dict):
         raise ValueError(f"Expected a JSON object in Eurostat snapshot: {path}")
     return payload
@@ -186,8 +194,9 @@ def build_decomposition_from_snapshots(
             start_year=start_year,
             end_year=end_year,
         )
-        coverage_path.parent.mkdir(parents=True, exist_ok=True)
-        coverage.to_csv(coverage_path, index=False)
+        with wrapping((OSError, UnicodeError), FileWriteError, path=str(coverage_path)):
+            coverage_path.parent.mkdir(parents=True, exist_ok=True)
+            coverage.to_csv(coverage_path, index=False)
 
     merged: pd.DataFrame | None = None
     for value_name, frame in series_frames.items():
