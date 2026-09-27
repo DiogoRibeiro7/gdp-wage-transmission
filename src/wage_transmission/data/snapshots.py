@@ -10,6 +10,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from dataexcept import DataLoadingError, FileReadError, FileWriteError, wrapping
+
 from wage_transmission.data.common import sha256_bytes, write_snapshot
 
 
@@ -38,7 +40,10 @@ def metadata_path_for(raw_path: Path) -> Path:
 
 
 def _load_metadata(metadata_path: Path) -> dict[str, Any]:
-    payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    with wrapping((OSError, UnicodeError), FileReadError, path=str(metadata_path)):
+        serialized = metadata_path.read_text(encoding="utf-8")
+    with wrapping(json.JSONDecodeError, DataLoadingError, source=str(metadata_path)):
+        payload = json.loads(serialized)
     if not isinstance(payload, dict):
         raise ValueError(f"Snapshot metadata must be a JSON object: {metadata_path}")
     return payload
@@ -52,7 +57,8 @@ def verify_snapshot(raw_path: Path, metadata_path: Path | None = None) -> Snapsh
     if not resolved_metadata.is_file():
         raise FileNotFoundError(resolved_metadata)
 
-    content = raw_path.read_bytes()
+    with wrapping(OSError, FileReadError, path=str(raw_path)):
+        content = raw_path.read_bytes()
     metadata = _load_metadata(resolved_metadata)
     digest = sha256_bytes(content)
     recorded_digest = str(metadata.get("sha256", ""))
@@ -121,8 +127,10 @@ def import_external_snapshot(
         **metadata,
         "external_original_filename": source_path.name,
     }
+    with wrapping(OSError, FileReadError, path=str(source_path)):
+        content = source_path.read_bytes()
     return write_snapshot(
-        source_path.read_bytes(),
+        content,
         destination,
         enriched,
         retrieval_method="external_import",
@@ -205,11 +213,12 @@ def write_snapshot_registry(raw_root: Path, output_path: Path) -> Path:
         "metadata_path",
         "url",
     ]
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
+    with wrapping((OSError, UnicodeError, csv.Error), FileWriteError, path=str(output_path)):
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with output_path.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
     return output_path
 
 

@@ -299,6 +299,12 @@ poetry run wage-transmission fetch-source-freeze \
 
 The fetcher stores the exact response bytes, retries only transient transport/HTTP failures, rejects obvious HTML/error payloads before storage, and reuses already verified snapshots without a second request. The audit also checks manifest metadata (URL, query id, dataset/flow/measure when present), so a self-consistent hash is not enough if the file belongs to a different source request.
 
+Snapshot storage and offline reconstruction raise DataExcept `FileReadError` or
+`FileWriteError` for file access failures and `DataLoadingError` for malformed
+CSV or JSON. The path and original cause are retained. Verification still
+raises `FileNotFoundError` for missing snapshots, while hash mismatches and
+attempts to overwrite a different vintage retain their validation errors.
+
 The GitHub Actions workflow performs the complete publication path on an internet-enabled runner: query manifest → immutable raw freeze → strict audit → offline panel reconstruction → Portugal/cross-country analyses → publication dossier → Ruff/mypy/pytest → checksummed Actions artifact. See [`docs/github_source_freeze.md`](docs/github_source_freeze.md).
 
 On a network-enabled machine, downloads should use an explicit vintage directory:
