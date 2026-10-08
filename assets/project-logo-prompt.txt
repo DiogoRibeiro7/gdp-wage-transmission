@@ -1,0 +1,7 @@
+Tool: built-in image generation
+
+Use case: logo-brand.
+Asset type: square project logo for gdp-wage-transmission.
+Project purpose: Reproducible research pipeline for estimating GDP-to-wage transmission (Portugal / cross-country panel)
+Design direction: A mid-century economic screen-print emblem: a broad burgundy zigzag ribbon transmits its motion into a narrower salmon ribbon through a shared joint, with three mint production blocks anchoring the first end. Muted blush background, intentionally offset ink registration, asymmetric constructive geometry. Suggest production moving into earnings; no coins, no gears, no text.
+Composition: one finished square image, visually distinctive and readable at 160 pixels, with enough margin for README display. Produce the actual artwork, not a mockup sheet or brand presentation. No watermark. Do not use a navy-and-gold metallic badge aesthetic.
